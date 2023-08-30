@@ -14,7 +14,7 @@
 
 import "./style.css";
 
-import { fromEvent, interval, merge } from "rxjs";
+import { fromEvent, interval, merge, Observable } from "rxjs";
 import { map, filter, scan } from "rxjs/operators";
 
 /** Constants */
@@ -37,26 +37,126 @@ const Block = {
   HEIGHT: Viewport.CANVAS_HEIGHT / Constants.GRID_HEIGHT,
 };
 
+const { hash, scaleToRange } = (() => {
+  // LCG using GCC's constants
+  const m = 0x80000000; // 2**31
+  const a = 1103515245;
+  const c = 12345;
+
+  const hash = (n: number) => (a * n + c) % m;
+  /**
+   * Takes hash value and scales it to the range [0, 6]
+   */
+  const scaleToRange = (n: number) => (6 * n) / (m - 1);
+
+  return { hash, scaleToRange };
+})();
+
+/**
+ * Creates a stream of random numbers in the range [0, 6]
+ *
+ * @param source$ The source Observable, elements of this are replaced with random numbers
+ * @param seed The seed for the random number generator
+ */
+export function createRngStreamFromSource<T>(source$: Observable<T>) {
+  return function createRngStream(
+    seed: number = 0
+  ): Observable<number> {
+    const randomNumberStream = source$.pipe(
+      scan((state: number, _: T) => hash(state), seed),  // Accumulate values over time 
+      map((hashed: number) => scaleToRange(hashed))  // Scale the values to the range [0, 6]
+    );
+
+    return randomNumberStream;
+  };
+}
+
+const rngStream = createRngStreamFromSource(interval(50));
+
+const randomStream$: Observable<number> = rngStream(42);
+
 /** User input */
 
-type Key = "KeyS" | "KeyA" | "KeyD";
+type Key = "KeyS" | "KeyA" | "KeyD" | "KeyZ" | "KeyX";
 
 type Event = "keydown" | "keyup" | "keypress";
 
 /** Utility functions */
 
 const tetriminos = [
-  // // I Tetrimino
-  // { blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], color: 'cyan' },
-  // // J Tetrimino
-  // { blocks: [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'blue' },
-  // // L Tetrimino
-  // { blocks: [{ x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'orange' },
+  // I Tetrimino
+  { blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], color: 'PaleGreen' },
+  // J Tetrimino
+  { blocks: [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'MediumTurquoise' },
+  // L Tetrimino
+  { blocks: [{ x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'PeachPuff' },
   // O Tetrimino
   { blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: 'pink' },
   // T Tetrimino
-  { blocks: [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'purple' },
-]
+  { blocks: [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'Salmon' },
+  // Z Tetrimino
+  { blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'Thistle' },
+  // S Tetrimino
+  { blocks: [{ x: 1, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: 'Teal' },
+];
+
+const tetriminoWallKicks = [
+  // I Tetrimino
+  [
+    [{ x: 0, y: 0 }, { x: -2, y: 0 }, { x: 1, y: 0 }, { x: -2, y: -1 }, { x: 1, y: 2 }],
+    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: 2, y: 0 }, { x: -1, y: 2 }, { x: 2, y: -1 }],
+    [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: -1, y: 0 }, { x: 2, y: 1 }, { x: -1, y: -2 }],
+    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: -2, y: 0 }, { x: 1, y: -2 }, { x: -2, y: 1 }],
+  ],
+
+  // J Tetrimino
+  [
+    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }],
+    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }],
+    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
+    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }],
+  ],
+
+  // L Tetrimino
+  [
+    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
+    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }],
+    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }],
+    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }],
+  ],
+
+  // O Tetrimino
+  [
+    [{ x: 0, y: 0 }],
+    [{ x: 0, y: 0 }],
+    [{ x: 0, y: 0 }],
+    [{ x: 0, y: 0 }],
+  ],
+
+  // T Tetrimino
+  [
+    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }],
+    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
+    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }],
+    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }],
+  ],
+
+  // Z Tetrimino
+  [
+    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }],
+    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
+    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }],
+    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }],
+  ],
+
+  // S Tetrimino
+  [
+    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }],
+    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
+    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }],
+    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }],
+  ],
+];
 
 /** State processing */
 
@@ -70,8 +170,12 @@ const createSvgElement = (
   return elem;
 };
 
+function RandomNumber(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 function createNewBlock(): SVGElement[] {
-  const block = tetriminos[0];
+  const block = tetriminos[RandomNumber(0, tetriminos.length - 1)];
   const hehe: SVGElement[] = [];
   const svg = document.querySelector("#svgCanvas") as SVGGraphicsElement &
     HTMLElement;
@@ -185,10 +289,12 @@ export function main() {
   const fromKey = (keyCode: Key, movement: string) =>
       key$.pipe(filter(({ code }) => code === keyCode), map(_ => movement));
 
-    const left$ = fromKey("KeyA", 'left');
-    const right$ = fromKey("KeyD", 'right');
-    const down$ = fromKey("KeyS", 'down');
+  const left$ = fromKey("KeyA", 'left');
+  const right$ = fromKey("KeyD", 'right');
+  const down$ = fromKey("KeyS", 'down');
 
+  const rotateLeft$ = fromKey("KeyZ", 'rotateLeft');
+  const rotateRight$ = fromKey("KeyX", 'rotateRight');
 
   /** Observables */
 
@@ -239,15 +345,8 @@ export function main() {
       if (rowBlocks.length === Constants.GRID_WIDTH) {
         rowBlocks.forEach(element => {
           element.remove();
+          existingBlocks.splice(existingBlocks.indexOf(element), 1); // Remove from the existingBlocks array
         });
-        existingBlocks.forEach(element => {
-          const y = Number(element.getAttribute('y'));
-          if (y < row) {
-            const newY = y + Block.HEIGHT;
-            element.setAttribute('y', `${newY}`);
-          }
-        });
-        existingBlocks.splice(existingBlocks.indexOf(rowBlocks[0]), Constants.GRID_WIDTH);
         existingBlocks.forEach(element => {
           const y = Number(element.getAttribute('y'));
           if (y < row) {
@@ -259,33 +358,75 @@ export function main() {
     });
   }
 
-  const move = (s: State, movement: number) => {
-    let newBlock;
-    
-    if (movement === 1 && canMoveHorizontally(s.currentBlock, Block.WIDTH, existingBlocks) && !checkCollision(s.currentBlock, existingBlocks)) {
-      newBlock = s.currentBlock.map(element => {
-        const x = Number(element.getAttribute("x")) + Block.WIDTH;
-        element.setAttribute("x", `${x}`);
-        return element;
-      });
-    } else if (movement === -1 && canMoveHorizontally(s.currentBlock, -Block.WIDTH, existingBlocks) && !checkCollision(s.currentBlock, existingBlocks)) {
-      newBlock = s.currentBlock.map(element => {
-        const x = Number(element.getAttribute("x")) - Block.WIDTH;
-        element.setAttribute("x", `${x}`);
-        return element;
-      });
-    } else if (movement === 0 && canMoveVertically(s.currentBlock, Block.HEIGHT) && !checkCollision(s.currentBlock, existingBlocks)) {
-      newBlock = s.currentBlock.map(element => {
-        const y = Number(element.getAttribute("y")) + Block.HEIGHT;
-        element.setAttribute("y", `${y}`);
-        return element;
-      });
-    } else {
-      newBlock = s.currentBlock; // No valid movement, keep the block unchanged
-    }
+  const move = (s: State, movement: number): State => {
+    const isMovementValid = (dx: number, dy: number): boolean =>
+      canMoveHorizontally(s.currentBlock, dx, existingBlocks) &&
+      canMoveVertically(s.currentBlock, dy) &&
+      !checkCollision(s.currentBlock, existingBlocks);
+  
+    const moveElement = (
+      element: SVGElement,
+      dx: number,
+      dy: number
+    ): SVGElement => {
+      const x = Number(element.getAttribute("x")) + dx;
+      const y = Number(element.getAttribute("y")) + dy;
+      element.setAttribute("x", `${x}`);
+      element.setAttribute("y", `${y}`);
+      return element;
+    };
+  
+    const applyMovement = (dx: number, dy: number): SVGElement[] =>
+      s.currentBlock.map((element) => moveElement(element, dx, dy));
+  
+    const newBlock: SVGElement[] =
+      movement === 1 && isMovementValid(Block.WIDTH, 0)
+        ? applyMovement(Block.WIDTH, 0)
+        : movement === -1 && isMovementValid(-Block.WIDTH, 0)
+        ? applyMovement(-Block.WIDTH, 0)
+        : movement === 0 && isMovementValid(0, Block.HEIGHT)
+        ? applyMovement(0, Block.HEIGHT)
+        : s.currentBlock;
   
     return { ...s, currentBlock: newBlock };
   };
+
+  const rotate = (s: State, direction: number) => {
+    const currentBlock = s.currentBlock;
+    const currentBlockIndex = tetriminos.findIndex(element => {
+      return element.blocks.every(block => {
+        return currentBlock.some(element => {
+          const x = Number(element.getAttribute('x'));
+          const y = Number(element.getAttribute('y'));
+          return x === block.x * Block.WIDTH && y === block.y * Block.HEIGHT;
+        });
+      });
+    });
+    const currentBlockRotation = tetriminoWallKicks[currentBlockIndex];
+    const currentBlockRotationIndex = currentBlockRotation.findIndex(element => {
+      return element.every(block => {
+        return currentBlock.some(element => {
+          const x = Number(element.getAttribute('x'));
+          const y = Number(element.getAttribute('y'));
+          return x === block.x * Block.WIDTH && y === block.y * Block.HEIGHT;
+        });
+      });
+    });
+    const newBlockRotationIndex = (currentBlockRotationIndex + direction) % 4;
+    const newBlockRotation = currentBlockRotation[newBlockRotationIndex];
+    const newBlock = newBlockRotation.map(element => {
+      const x = Number(currentBlock[0].getAttribute('x')) + element.x * Block.WIDTH;
+      const y = Number(currentBlock[0].getAttribute('y')) + element.y * Block.HEIGHT;
+      const cube = createSvgElement(svg.namespaceURI, "rect", {
+        height: `${Block.HEIGHT}`,
+        width: `${Block.WIDTH}`,
+        x: `${x}`,
+        y: `${y}`,
+        style: `fill: ${currentBlock[0].getAttribute('style')}`,
+      });
+      return cube;
+    });
+  }
 
   /** Determines the rate of time steps */
   const tick$ = interval(Constants.TICK_RATE_MS);
@@ -297,6 +438,7 @@ export function main() {
         element.setAttribute("y", `${y}`);
         return element;
       }, []);
+
       return { ...s, currentBlock: newBlock, gameEnd: checkGameEnd(s) };
     } 
     else {
@@ -304,8 +446,6 @@ export function main() {
       const newBlock = createNewBlock(); // No valid movement, keep the block unchanged
       return { ...s, currentBlock: newBlock, gameEnd: checkGameEnd(s) };
     }
-
-    // return { ...s, currentBlock: newBlock };
   }
 
   /**
@@ -334,7 +474,7 @@ export function main() {
 
   render(initialState);
 
-  const source$ = merge(tick$, left$, right$, down$)
+  const source$ = merge(tick$, left$, right$, down$, rotateLeft$, rotateRight$)
     .pipe(scan((s: State, action: string | number) => {
       console.log(action);
       switch (action) {
@@ -344,14 +484,21 @@ export function main() {
           return move(s, -1)
         case('down'):
           return move(s, 0)
+        // case('rotateLeft'):
+        //   return rotate(s, -1)
+        // case('rotateRight'):
+        //   return rotate(s, 1)
         default:
           return tick(s)
       }
       }, initialState)).subscribe((s: State) => {
+
       removeFilledRows();
+
       render(s);
 
       if (s.gameEnd) {
+        source$.unsubscribe();
         show(gameover);
       } else {
         hide(gameover);
@@ -365,3 +512,4 @@ if (typeof window !== "undefined") {
     main();
   };
 }
+
