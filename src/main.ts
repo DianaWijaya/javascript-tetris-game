@@ -166,7 +166,7 @@ const createSvgElement = (
   props: Record<string, string> = {}
 ) => {
   const elem = document.createElementNS(namespace, name) as SVGElement;
-  Object.entries(props).forEach(([k, v]) => elem.setAttribute(k, v));
+  Object.entries(props).map(([k, v]) => elem.setAttribute(k, v));
   return elem;
 };
 
@@ -175,11 +175,12 @@ function RandomNumber(min: number, max: number): number {
 }
 
 function createNewBlock(): SVGElement[] {
-  const block = tetriminos[RandomNumber(0, tetriminos.length - 1)];
+  // const block = tetriminos[RandomNumber(0, tetriminos.length - 1)];
+  const block = tetriminos[3];
   const hehe: SVGElement[] = [];
   const svg = document.querySelector("#svgCanvas") as SVGGraphicsElement &
     HTMLElement;
-  block.blocks.forEach(element => {
+  block.blocks.map(element => {
     const cube = createSvgElement(svg.namespaceURI, "rect", {
       height: `${Block.HEIGHT}`,
       width: `${Block.WIDTH}`,
@@ -328,7 +329,7 @@ export function main() {
     });
   }
 
-  function removeFilledRows() {
+  function removeFilledRows(s: State): [number, number, number] {
     const rows: number[] = [];
     existingBlocks.forEach(element => {
       const y = Number(element.getAttribute('y'));
@@ -336,6 +337,19 @@ export function main() {
         rows.push(y);
       }
     });
+  
+    const clearedRows: number[] = rows.filter(row => {
+      const rowBlocks = existingBlocks.filter(element => {
+        const y = Number(element.getAttribute('y'));
+        return y === row;
+      });
+      return rowBlocks.length === Constants.GRID_WIDTH;
+    });
+  
+    const newScore = s.score + calculateScore(clearedRows.length);
+    const newLevel = calculateLevel(newScore);
+    const highScore = newScore > s.highScore ? newScore : s.highScore;
+  
     rows.sort((a, b) => a - b);
     rows.forEach(row => {
       const rowBlocks = existingBlocks.filter(element => {
@@ -356,9 +370,21 @@ export function main() {
         });
       }
     });
+  
+    return [newScore, newLevel, highScore];
   }
 
-  const move = (s: State, movement: number): State => {
+  const calculateLevel = (score: number): number => {
+    return Math.floor(score / 100);
+  }
+
+  const calculateScore = (clearedRows: number): number => {
+  // You can define your scoring logic here
+  // For example, you can give more points for clearing more rows
+  return clearedRows * 100;
+  };
+
+  const move = (s: State, movement: number, score: number, level: number, highScore: number): State => {
     const isMovementValid = (dx: number, dy: number): boolean =>
       canMoveHorizontally(s.currentBlock, dx, existingBlocks) &&
       canMoveVertically(s.currentBlock, dy) &&
@@ -388,7 +414,7 @@ export function main() {
         ? applyMovement(0, Block.HEIGHT)
         : s.currentBlock;
   
-    return { ...s, currentBlock: newBlock };
+    return { ...s, currentBlock: newBlock, score: score, level: level, highScore: highScore };
   };
 
   const rotate = (s: State, direction: number) => {
@@ -431,7 +457,7 @@ export function main() {
   /** Determines the rate of time steps */
   const tick$ = interval(Constants.TICK_RATE_MS);
 
-  const tick = (s: State) => {
+  const tick = (s: State, score: number, level: number, highScore: number) => {
     if (canMoveVertically(s.currentBlock, Block.HEIGHT) && !checkCollision(s.currentBlock, existingBlocks)) {
       const newBlock = s.currentBlock.map(element => {
         const y = Number(element.getAttribute("y")) + Block.HEIGHT;
@@ -444,7 +470,7 @@ export function main() {
     else {
       existingBlocks.push(...s.currentBlock);
       const newBlock = createNewBlock(); // No valid movement, keep the block unchanged
-      return { ...s, currentBlock: newBlock, gameEnd: checkGameEnd(s) };
+      return { ...s, currentBlock: newBlock, gameEnd: checkGameEnd(s), score: score, level: level, highScore: highScore };
     }
   }
 
@@ -456,54 +482,58 @@ export function main() {
    * @param s Current state
    */
   const render = (s: State) => {
-    s.currentBlock.forEach(element => {
-      svg.appendChild(element);
-    }
-    );
+  s.currentBlock.forEach(element => {
+    svg.appendChild(element);
+  });
 
-    // Add a block to the preview canvas
-    const cubePreview = createSvgElement(preview.namespaceURI, "rect", {
-      height: `${Block.HEIGHT}`,
-      width: `${Block.WIDTH}`,
-      x: `${Block.WIDTH * 2}`,
-      y: `${Block.HEIGHT}`,
-      style: "fill: pink",
-    });
-    preview.appendChild(cubePreview);
-  };
+  scoreText.textContent = `${s.score}`;
+  levelText.textContent = `${s.level}`;
+  highScoreText.textContent = `${s.highScore}`;
+
+  // Add a block to the preview canvas
+  const cubePreview = createSvgElement(preview.namespaceURI, "rect", {
+    height: `${Block.HEIGHT}`,
+    width: `${Block.WIDTH}`,
+    x: `${Block.WIDTH * 2}`,
+    y: `${Block.HEIGHT}`,
+    style: "fill: pink",
+  });
+  preview.appendChild(cubePreview);
+};
 
   render(initialState);
 
-  const source$ = merge(tick$, left$, right$, down$, rotateLeft$, rotateRight$)
-    .pipe(scan((s: State, action: string | number) => {
+  const source$ = merge(tick$, left$, right$, down$)
+  .pipe(
+    scan((s: State, action: string | number) => {
+      const update = removeFilledRows(s);
+      const newScore = update[0];
+      const newLevel = update[1];
+      const highScore = update[2];
+
       console.log(action);
       switch (action) {
-        case('right'):
-          return move(s, 1)
-        case('left'):
-          return move(s, -1)
-        case('down'):
-          return move(s, 0)
-        // case('rotateLeft'):
-        //   return rotate(s, -1)
-        // case('rotateRight'):
-        //   return rotate(s, 1)
+        case 'right':
+          return move(s, 1, newScore, newLevel, highScore);
+        case 'left':
+          return move(s, -1, newScore, newLevel, highScore);
+        case 'down':
+          return move(s, 0, newScore, newLevel, highScore);
         default:
-          return tick(s)
+          return tick(s, newScore, newLevel, highScore);
       }
-      }, initialState)).subscribe((s: State) => {
+    }, initialState)
+  )
+  .subscribe((s: State) => {
+    render(s);
 
-      removeFilledRows();
-
-      render(s);
-
-      if (s.gameEnd) {
-        source$.unsubscribe();
-        show(gameover);
-      } else {
-        hide(gameover);
-      }
-    });
+    if (s.gameEnd) {
+      source$.unsubscribe();
+      show(gameover);
+    } else {
+      hide(gameover);
+    }
+  });
 }
 
 // The following simply runs your main function on window load.  Make sure to leave it in place.
