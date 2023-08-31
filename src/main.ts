@@ -14,7 +14,7 @@
 
 import "./style.css";
 
-import { fromEvent, interval, merge, Observable } from "rxjs";
+import { fromEvent, interval, merge, noop, Observable } from "rxjs";
 import { map, filter, scan } from "rxjs/operators";
 
 /** Constants */
@@ -71,9 +71,11 @@ export function createRngStreamFromSource<T>(source$: Observable<T>) {
   };
 }
 
-const rngStream = createRngStreamFromSource(interval(50));
 
-const randomStream$: Observable<number> = rngStream(42);
+
+// const rngStream = createRngStreamFromSource(interval(50));
+
+// const randomStream$: Observable<number> = rngStream(42);
 
 /** User input */
 
@@ -85,19 +87,19 @@ type Event = "keydown" | "keyup" | "keypress";
 
 const tetriminos = [
   // I Tetrimino
-  { blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], color: 'PaleGreen' },
+  { index: 0, blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], color: 'PaleGreen' },
   // J Tetrimino
-  { blocks: [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'MediumTurquoise' },
+  { index: 1, blocks: [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'MediumTurquoise' },
   // L Tetrimino
-  { blocks: [{ x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'PeachPuff' },
+  { index: 2, blocks: [{ x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'PeachPuff' },
   // O Tetrimino
-  { blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: 'pink' },
+  { index: 3, blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: 'pink' },
   // T Tetrimino
-  { blocks: [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'Salmon' },
+  { index: 4, blocks: [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'Salmon' },
   // Z Tetrimino
-  { blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'Thistle' },
+  { index: 5, blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'Thistle' },
   // S Tetrimino
-  { blocks: [{ x: 1, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: 'Teal' },
+  { index: 6, blocks: [{ x: 1, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: 'Teal' },
 ];
 
 const tetriminoWallKicks = [
@@ -175,8 +177,8 @@ function RandomNumber(min: number, max: number): number {
 }
 
 function createNewBlock(): SVGElement[] {
-  // const block = tetriminos[RandomNumber(0, tetriminos.length - 1)];
-  const block = tetriminos[3];
+  const block = tetriminos[RandomNumber(0, 6)];
+
   const hehe: SVGElement[] = [];
   const svg = document.querySelector("#svgCanvas") as SVGGraphicsElement &
     HTMLElement;
@@ -297,6 +299,9 @@ export function main() {
   const rotateLeft$ = fromKey("KeyZ", 'rotateLeft');
   const rotateRight$ = fromKey("KeyX", 'rotateRight');
 
+  const rngStream = createRngStreamFromSource(interval(50));
+  const randomBlockIndexStream$: Observable<number> = rngStream(42); // Use any seed you prefer
+
   /** Observables */
 
   function canMoveHorizontally(currentBlock: SVGElement[], xOffset: number, existingBlocks: SVGElement[]): boolean {
@@ -375,7 +380,14 @@ export function main() {
   }
 
   const calculateLevel = (score: number): number => {
-    return Math.floor(score / 100);
+    const level = Math.floor(score / 400);
+    if (score <= 2000) {
+      return level;
+    }
+
+    else {
+      return 6;
+    }
   }
 
   const calculateScore = (clearedRows: number): number => {
@@ -417,42 +429,58 @@ export function main() {
     return { ...s, currentBlock: newBlock, score: score, level: level, highScore: highScore };
   };
 
-  const rotate = (s: State, direction: number) => {
-    const currentBlock = s.currentBlock;
-    const currentBlockIndex = tetriminos.findIndex(element => {
-      return element.blocks.every(block => {
-        return currentBlock.some(element => {
-          const x = Number(element.getAttribute('x'));
-          const y = Number(element.getAttribute('y'));
-          return x === block.x * Block.WIDTH && y === block.y * Block.HEIGHT;
-        });
-      });
+  const calculateNewBlockPositions = (block: SVGElement[], centerPosition: { x: number, y: number }, rotationFactor: 1 | -1) => {
+    return block.map(element => {
+      const relativeX = Number(element.getAttribute("x")) - centerPosition.x;
+      const relativeY = Number(element.getAttribute("y")) - centerPosition.y;
+  
+      const newX = centerPosition.x + rotationFactor * relativeY;
+      const newY = centerPosition.y - rotationFactor * relativeX;
+      return { x: newX, y: newY };
     });
-    const currentBlockRotation = tetriminoWallKicks[currentBlockIndex];
-    const currentBlockRotationIndex = currentBlockRotation.findIndex(element => {
-      return element.every(block => {
-        return currentBlock.some(element => {
-          const x = Number(element.getAttribute('x'));
-          const y = Number(element.getAttribute('y'));
-          return x === block.x * Block.WIDTH && y === block.y * Block.HEIGHT;
-        });
+  };
+  
+  const isValidRotation = (newBlockPositions: { x: number, y: number }[], existingBlocks: SVGElement[], canvasWidth: number, canvasHeight: number) => {
+    return newBlockPositions.every(({ x, y }) => {
+      const withinCanvas = x >= 0 && x + Block.WIDTH <= canvasWidth && y >= 0 && y + Block.HEIGHT <= canvasHeight;
+  
+      const collides = existingBlocks.some(block => {
+        const existingX = Number(block.getAttribute("x"));
+        const existingY = Number(block.getAttribute("y"));
+        return Math.abs(x - existingX) < Block.WIDTH && Math.abs(y - existingY) < Block.HEIGHT;
       });
+  
+      return withinCanvas && !collides;
     });
-    const newBlockRotationIndex = (currentBlockRotationIndex + direction) % 4;
-    const newBlockRotation = currentBlockRotation[newBlockRotationIndex];
-    const newBlock = newBlockRotation.map(element => {
-      const x = Number(currentBlock[0].getAttribute('x')) + element.x * Block.WIDTH;
-      const y = Number(currentBlock[0].getAttribute('y')) + element.y * Block.HEIGHT;
-      const cube = createSvgElement(svg.namespaceURI, "rect", {
-        height: `${Block.HEIGHT}`,
-        width: `${Block.WIDTH}`,
-        x: `${x}`,
-        y: `${y}`,
-        style: `fill: ${currentBlock[0].getAttribute('style')}`,
-      });
-      return cube;
+  };
+  
+  const applyNewBlockPositions = (block: SVGElement[], newBlockPositions: { x: number, y: number }[]) => {
+    return block.map((element, index) => {
+      element.setAttribute("x", `${newBlockPositions[index].x}`);
+      element.setAttribute("y", `${newBlockPositions[index].y}`);
+      return element;
     });
-  }
+  };
+  
+  const rotate = (s: State, rotationFactor: 1 | -1) => {
+    const centerBlock = s.currentBlock[2];
+    const centerPositionX = Number(centerBlock.getAttribute("x"));
+    const centerPositionY = Number(centerBlock.getAttribute("y"));
+  
+    const newBlockPositions = calculateNewBlockPositions(s.currentBlock, { x: centerPositionX, y: centerPositionY }, rotationFactor);
+  
+    const validRotation = isValidRotation(newBlockPositions, existingBlocks, Viewport.CANVAS_WIDTH, Viewport.CANVAS_HEIGHT);
+  
+    if (validRotation) {
+      const rotatedBlock = applyNewBlockPositions(s.currentBlock, newBlockPositions);
+      if (!checkCollision(rotatedBlock, existingBlocks)) {
+        return { ...s, currentBlock: rotatedBlock };
+      }
+    }
+  
+    return s;
+  };
+  
 
   /** Determines the rate of time steps */
   const tick$ = interval(Constants.TICK_RATE_MS);
@@ -469,9 +497,17 @@ export function main() {
     } 
     else {
       existingBlocks.push(...s.currentBlock);
-      const newBlock = createNewBlock(); // No valid movement, keep the block unchanged
-      return { ...s, currentBlock: newBlock, gameEnd: checkGameEnd(s), score: score, level: level, highScore: highScore };
+      const newBlock = s.nextBlock; 
+      const nextBlock = createNewBlock();
+      return { ...s, currentBlock: newBlock, nextBlock: nextBlock, gameEnd: checkGameEnd(s), score: score, level: level, highScore: highScore };
     }
+  }
+
+  function getXAndYOfBlock(block: SVGElement[]): [number, number, string] {
+    const x: number = Number(block[0].getAttribute('x'));
+    const y: number = Number(block[0].getAttribute('y'));
+    const z: string = block[0].getAttribute('style')!;
+    return [x, y, z];
   }
 
   /**
@@ -482,28 +518,38 @@ export function main() {
    * @param s Current state
    */
   const render = (s: State) => {
-  s.currentBlock.forEach(element => {
-    svg.appendChild(element);
-  });
+    s.currentBlock.forEach(element => {
+      svg.appendChild(element);
+    });
+  
+    scoreText.textContent = `${s.score}`;
+    levelText.textContent = `${s.level}`;
+    highScoreText.textContent = `${s.highScore}`;
+    
+    // Add a block to the preview canvas
+    s.nextBlock.forEach(element => {
+      preview.appendChild(element);
+    } 
+    );
 
-  scoreText.textContent = `${s.score}`;
-  levelText.textContent = `${s.level}`;
-  highScoreText.textContent = `${s.highScore}`;
+    // s.nextBlock.forEach(element => {
+    //   const [x, y, z] = getXAndYOfBlock(s.nextBlock);
+    //   const cubePreview = createSvgElement(preview.namespaceURI, "rect", {
+    //     height: `${Block.HEIGHT}`,
+    //     width: `${Block.WIDTH}`,
+    //     x: `${Block.WIDTH * 2 + x}`,
+    //     y: `${Block.HEIGHT + y}`,
+    //     style: `${z}`,
+    //   });
+    //   preview.appendChild(cubePreview);
+    // }
+    // );
 
-  // Add a block to the preview canvas
-  const cubePreview = createSvgElement(preview.namespaceURI, "rect", {
-    height: `${Block.HEIGHT}`,
-    width: `${Block.WIDTH}`,
-    x: `${Block.WIDTH * 2}`,
-    y: `${Block.HEIGHT}`,
-    style: "fill: pink",
-  });
-  preview.appendChild(cubePreview);
-};
+  };
 
   render(initialState);
 
-  const source$ = merge(tick$, left$, right$, down$)
+  const source$ = merge(tick$, left$, right$, down$, rotateLeft$, rotateRight$)
   .pipe(
     scan((s: State, action: string | number) => {
       const update = removeFilledRows(s);
@@ -511,7 +557,6 @@ export function main() {
       const newLevel = update[1];
       const highScore = update[2];
 
-      console.log(action);
       switch (action) {
         case 'right':
           return move(s, 1, newScore, newLevel, highScore);
@@ -519,10 +564,14 @@ export function main() {
           return move(s, -1, newScore, newLevel, highScore);
         case 'down':
           return move(s, 0, newScore, newLevel, highScore);
+        case 'rotateLeft':
+          return rotate(s, 1);
+        case 'rotateRight':
+          return rotate(s, -1);
         default:
           return tick(s, newScore, newLevel, highScore);
       }
-    }, initialState)
+    }, initialState),
   )
   .subscribe((s: State) => {
     render(s);
