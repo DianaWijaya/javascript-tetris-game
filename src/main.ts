@@ -14,7 +14,7 @@
 
 import "./style.css";
 
-import { BehaviorSubject, fromEvent, interval, merge, noop, Observable } from "rxjs";
+import { BehaviorSubject, fromEvent, interval, merge } from "rxjs";
 import { map, filter, scan, switchMap } from "rxjs/operators";
 
 /** Constants */
@@ -27,7 +27,6 @@ const Viewport = {
 } as const;
 
 const Constants = {
-  // TICK_RATE_MS: 500,
   GRID_WIDTH: 10,
   GRID_HEIGHT: 20,
 } as const;
@@ -41,6 +40,32 @@ const Block = {
   HEIGHT: Viewport.CANVAS_HEIGHT / Constants.GRID_HEIGHT,
 };
 
+/** User input */
+
+type Key = "KeyS" | "KeyA" | "KeyD" | "KeyZ" | "KeyX" | "KeyR";
+
+/** Tetromino blocks */
+
+const tetrominos = [
+  // I Tetromino
+  { index: 0, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], color: '#E0D7FF' },
+  // J Tetromino
+  { index: 1, blocks: [{ x: 0, y: 1 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#FFCACB' },
+  // L Tetromino
+  { index: 2, blocks: [{ x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#B4E5FF' },
+  // O Tetromino
+  { index: 3, blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: '#9CAAF2' },
+  // T Tetromino
+  { index: 4, blocks: [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#C5E8B4' },
+  // Z Tetromino
+  { index: 5, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#F4F0D9' },
+  // S Tetromino
+  { index: 6, blocks: [{ x: 2, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 1 }], color: '#88C9C8' },
+];
+
+/**
+ * Random number generator class that generates pseudorandom integers within a specified range
+ */
 class RNG {
   private static m = 0x80000000; // 2**31
   private static a = 1103515245;
@@ -59,33 +84,19 @@ class RNG {
   }
 }
 
-/** User input */
-
-type Key = "KeyS" | "KeyA" | "KeyD" | "KeyZ" | "KeyX" | "KeyR";
-
-type Event = "keydown" | "keyup" | "keypress";
-
 /** Utility functions */
 
-const tetriminos = [
-  // I Tetrimino
-  { index: 0, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], color: '#E0D7FF' },
-  // J Tetrimino
-  { index: 1, blocks: [{ x: 0, y: 1 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#FFCACB' },
-  // L Tetrimino
-  { index: 2, blocks: [{ x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#B4E5FF' },
-  // O Tetrimino
-  { index: 3, blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: '#9CAAF2' },
-  // T Tetrimino
-  { index: 4, blocks: [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#C5E8B4' },
-  // Z Tetrimino
-  { index: 5, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#F4F0D9' },
-  // S Tetrimino
-  { index: 6, blocks: [{ x: 2, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 1 }], color: '#88C9C8' },
-];
-
-/** State processing */
-
+/**
+ * Creates an SVG element with the given properties.
+ *
+ * See https://developer.mozilla.org/en-US/docs/Web/SVG/Element for valid
+ * element names and properties.
+ *
+ * @param namespace Namespace of the SVG element
+ * @param name SVGElement name
+ * @param props Properties to set on the SVG element
+ * @returns SVG element
+ */
 const createSvgElement = (
   namespace: string | null,
   name: string,
@@ -96,18 +107,22 @@ const createSvgElement = (
   return elem;
 };
 
-function RandomNumber(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 const RNGGenerator = new RNG(987654321);
 
+/**
+ * Creates a new set of SVG elements representing a block from the tetromino collection
+ *
+ * @returns An array of SVG elements representing the individual parts of the new block
+ */
 function createNewBlock(): SVGElement[] {
-  const block = tetriminos[RNGGenerator.randomInt(0, tetriminos.length - 1)];
+  // Randomly select a tetromino
+  const block = tetrominos[RNGGenerator.randomInt(0, tetrominos.length - 1)];
 
   const newBlock: SVGElement[] = [];
   const svg = document.querySelector("#svgCanvas") as SVGGraphicsElement &
     HTMLElement;
+
+  // Create the SVG elements for the block
   block.blocks.map(element => {
     const cube = createSvgElement(svg.namespaceURI, "rect", {
       height: `${Block.HEIGHT}`,
@@ -120,6 +135,23 @@ function createNewBlock(): SVGElement[] {
   })
   return newBlock;
 }
+
+/**
+ * Function to check if the game has ended
+ * 
+ * @param s The state
+ * @returns If the game has ended
+ */
+const checkGameEnd = (s: State) => {
+
+  // Check if the current block is at the top of the canvas
+  return s.currentBlock.some(element => {
+    const y = Number(element.getAttribute('y'));
+    return y === 0;
+  });
+}
+
+/** State processing */
 
 type State = Readonly<{
   gameEnd: boolean;
@@ -141,19 +173,6 @@ const initialState: State = {
   currentTick: Tick_Rate.TICK_RATE_MS,
 } as const;
 
-const checkGameEnd = (s: State) => {
-  return s.currentBlock.some(element => {
-    const y = Number(element.getAttribute('y'));
-    return y === 0;
-  });
-}
-
-/**
- * Updates the state by proceeding with one time step.
- *
- * @param s Current state
- * @returns Updated state
- */
 
 /** Rendering (side effects) */
 
@@ -173,21 +192,6 @@ const show = (elem: SVGGraphicsElement) => {
 const hide = (elem: SVGGraphicsElement) =>
   elem.setAttribute("visibility", "hidden");
 
-const showRestart = (elem: SVGGraphicsElement) => {
-  elem.setAttribute("visibility", "visible");
-};
-
-/**
- * Creates an SVG element with the given properties.
- *
- * See https://developer.mozilla.org/en-US/docs/Web/SVG/Element for valid
- * element names and properties.
- *
- * @param namespace Namespace of the SVG element
- * @param name SVGElement name
- * @param props Properties to set on the SVG element
- * @returns SVG element
- */
 
 /**
  * This is the function called on page load. Your main game loop
@@ -205,6 +209,7 @@ export function main() {
     HTMLElement;
   const container = document.querySelector("#main") as HTMLElement;
 
+  // Set the canvas sizes
   svg.setAttribute("height", `${Viewport.CANVAS_HEIGHT}`);
   svg.setAttribute("width", `${Viewport.CANVAS_WIDTH}`);
   preview.setAttribute("height", `${Viewport.PREVIEW_HEIGHT}`);
@@ -215,34 +220,24 @@ export function main() {
   const scoreText = document.querySelector("#scoreText") as HTMLElement;
   const highScoreText = document.querySelector("#highScoreText") as HTMLElement;
 
-  /** User input */
-
   const existingBlocks: SVGElement[] = [];
 
-  const key$ = fromEvent<KeyboardEvent>(document, "keypress");
+  /** User input */
 
   const fromKey = (keyCode: Key, movement: string) =>
-  merge(
-    key$.pipe(
-      filter(({ code, type }) => type === "keypress" && (code === keyCode || code === `Arrow${movement}`)),
-      map(_ => movement)
-    ),
-    key$.pipe(
-      filter(({ code, type }) => type === "keydown" && (code === keyCode || code === `Arrow${movement}`)),
-      map(_ => movement)
-    )
-  );
+      key$.pipe(filter(({ code }) => code === keyCode), map(_ => movement));
 
-  const left$ = fromKey("KeyA", 'left');
-  const right$ = fromKey("KeyD", 'right');
-  const down$ = fromKey("KeyS", 'down');
+  /** Operation functions */
 
-  const rotateLeft$ = fromKey("KeyZ", 'rotateLeft');
-  const rotateRight$ = fromKey("KeyX", 'rotateRight');
-
-  const restart$ = fromKey("KeyR", 'restart');
-
-  function canMoveHorizontally(currentBlock: SVGElement[], xOffset: number, existingBlocks: SVGElement[]): boolean {
+  /**
+   * Function to check if the block can move horizontally, and if it will collide with an existing block
+   * 
+   * @param currentBlock The current block
+   * @param xOffset Number added to the x coordinate of the block to check if it can move horizontally
+   * @param existingBlocks List containing all the existing blocks in the canvas
+   * @returns Boolean that shows if the block can move horizontally
+   */
+  const canMoveHorizontally = (currentBlock: SVGElement[], xOffset: number, existingBlocks: SVGElement[]): boolean => {
     return currentBlock.every(element => {
       const newX = Number(element.getAttribute('x')) + xOffset;
       return newX >= 0 && newX + Block.WIDTH <= Viewport.CANVAS_WIDTH && !existingBlocks.some(block => {
@@ -253,14 +248,28 @@ export function main() {
     });
   }
 
-  function canMoveVertically(currentBlock: SVGElement[], yOffset: number): boolean {
+  /**
+   * Function to check if the block can move vertically, and not past the bottom of the canvas
+   * 
+   * @param currentBlock The current block
+   * @param yOffset Number added to the y coordinate of the block to check if it can move vertically
+   * @returns Boolean that shows if the block can move vertically
+   */
+  const canMoveVertically = (currentBlock: SVGElement[], yOffset: number): boolean => {
     return currentBlock.every(element => {
       const newY = Number(element.getAttribute('y')) + yOffset;
       return newY >= 0 && newY + Block.HEIGHT <= Viewport.CANVAS_HEIGHT;
     });
   }
 
-  function checkCollision(currentBlock: SVGElement[], existingBlocks: SVGElement[]): boolean {
+  /**
+   * Function to check if the current block collides with an existing block
+   * 
+   * @param currentBlock The current block
+   * @param existingBlocks List containing all the existing blocks in the canvas
+   * @returns Boolean that shows if the current block collide with an existing block
+   */
+  const checkCollision = (currentBlock: SVGElement[], existingBlocks: SVGElement[]): boolean => {
     return currentBlock.some(element => {
       const newX = Number(element.getAttribute('x'));
       const newY = Number(element.getAttribute('y'));
@@ -272,7 +281,13 @@ export function main() {
     });
   }
 
-  function removeFilledRows(s: State): [number, number, number] {
+  /**
+   * Function that removes filled rows and updates the score, level and high score
+   * 
+   * @param s The state
+   * @returns A list containing the new score, level and high score
+   */
+  const removeFilledRows = (s: State): [number, number, number] => {
     const rows: number[] = [];
     existingBlocks.map(element => {
       const y = Number(element.getAttribute('y'));
@@ -317,15 +332,39 @@ export function main() {
     return [newScore, newLevel, highScore];
   }
 
+  /**
+   * Function to calculate the current level by dividing the score
+   * 
+   * @param score The current score
+   * @returns Number for the current level
+   */
   const calculateLevel = (score: number): number => {
     const level = Math.floor(score / 300);
     return level;
   }
 
+  /**
+   * Function to calculate the score for the cleared rows
+   * 
+   * @param clearedRows The number of rows cleared
+   * @returns Score for the cleared rows
+   */
   const calculateScore = (clearedRows: number): number => {
     return clearedRows * 100;
   };
 
+  /**
+   * Function to move the block through user input
+   * First, checks if there is space to move the block, or if there will be a collision. Then, move the block by 1 block width or height
+   * based on the user input. 
+   * 
+   * @param s The state
+   * @param movement The movement of the block (left, right, down)
+   * @param score The score 
+   * @param level The level
+   * @param highScore The highscore
+   * @returns The state with all the updated values and position of the new block if it can move
+   */
   const move = (s: State, movement: number, score: number, level: number, highScore: number): State => {
     const isMovementValid = (dx: number, dy: number): boolean =>
       (
@@ -361,6 +400,14 @@ export function main() {
     return { ...s, currentBlock: newBlock, score: score, level: level, highScore: highScore };
   };
 
+  /**
+   * Function to calculate the new x and y coordinates of the block after rotation
+   * 
+   * @param block The block
+   * @param centerPosition The center position of the block
+   * @param rotationFactor The rotation factor (1 or -1)
+   * @returns Two values for the new x and y coordinates of the block
+   */
   const calculateNewBlockPositions = (block: SVGElement[], centerPosition: { x: number, y: number }, rotationFactor: 1 | -1) => {
     return block.map(element => {
       const relativeX = Number(element.getAttribute("x")) - centerPosition.x;
@@ -372,6 +419,15 @@ export function main() {
     });
   };
   
+  /**
+   * Function to check if the block can rotate
+   * 
+   * @param newBlockPositions The new block positions after rotation
+   * @param existingBlocks The list consisting of all existing blocks in the canvas
+   * @param canvasWidth The width of the canvas
+   * @param canvasHeight The height of the canvas
+   * @returns Boolean that shows if the block can rotate
+   */
   const isValidRotation = (newBlockPositions: { x: number, y: number }[], existingBlocks: SVGElement[], canvasWidth: number, canvasHeight: number) => {
     return newBlockPositions.every(({ x, y }) => {
       const checkWithinCanvas = (
@@ -393,6 +449,13 @@ export function main() {
     });
   };
   
+  /**
+   * Function that applies the new block positions to the block
+   * 
+   * @param block The block
+   * @param newBlockPositions The new block positions after rotation
+   * @returns The new state with the updated block positions
+   */
   const applyNewBlockPositions = (block: SVGElement[], newBlockPositions: { x: number, y: number }[]) => {
     return block.map((element, index) => {
       element.setAttribute("x", `${newBlockPositions[index].x}`);
@@ -401,9 +464,20 @@ export function main() {
     });
   };
   
+  /**
+   * Main function for rotation, checks if the block can rotate, and if it will collide with an existing block, then does the calculation for
+   * the new block positions and applies it to the block
+   * 
+   * @param s The state
+   * @param rotationFactor The rotation factor (1 or -1)
+   * @param score The score of the state
+   * @param level The level of the state
+   * @param highScore The highscore of the state
+   * @returns The state with the updated block positions, if the block can rotate
+   */
   const rotate = (s: State, rotationFactor: 1 | -1, score: number, level: number, highScore: number) => {
     const oBlockIndex = 3;
-    if (s.currentBlock[0].getAttribute('style')!.includes(tetriminos[oBlockIndex].color)) {
+    if (s.currentBlock[0].getAttribute('style')!.includes(tetrominos[oBlockIndex].color)) {
       return s;
     }
 
@@ -425,6 +499,12 @@ export function main() {
     return s;
   };
 
+  /**
+   * Function to restart the game
+   * 
+   * @param s The state
+   * @returns The defaulted state when restart is called
+   */
   const restart = (s: State) => {
     existingBlocks.map(element => {
       element.remove();
@@ -452,6 +532,12 @@ export function main() {
     }
   }
 
+  /**
+   * Function to calculate the new tick rate after checking the level
+   * 
+   * @param s The state
+   * @returns The new tick rate for the next tick after checking the level
+   */
   const calculateNextTickRate = (s: State) => {
     const baseTickRate = Tick_Rate.TICK_RATE_MS;
     const newTickRate = baseTickRate - s.level * 50;
@@ -462,11 +548,15 @@ export function main() {
     return 200;
   };
 
-  const tickRate$ = new BehaviorSubject(Tick_Rate.TICK_RATE_MS);
-  const tick$ = tickRate$.pipe(
-    switchMap((tickRate) => interval(tickRate))
-  );
-
+  /**
+   * Function that advances the game state by one tick, updating the position of the current block and handling collisions
+   * 
+   * @param s The state
+   * @param score The score highscore of the state
+   * @param level The level highscore of the state
+   * @param highScore The highscore of the state
+   * @returns The updated state with the new tick rate, and the new block if the block can move down, level, high score, and score
+   */
   const tick = (s: State, score: number, level: number, highScore: number) => {
     console.log(existingBlocks);
 
@@ -493,6 +583,13 @@ export function main() {
     }
   };
 
+  /**
+   * Renders the current state to the canvas.
+   *
+   * In MVC terms, this updates the View using the Model.
+   *
+   * @param s Current state
+   */
   const render = (s: State) => {
     s.currentBlock.map(element => {
       svg.appendChild(element);
@@ -509,8 +606,46 @@ export function main() {
     );
   };
 
+  // Initial render
   render(initialState);
 
+  /** Observables */
+
+  const key$ = fromEvent<KeyboardEvent>(document, "keypress");
+
+  const left$ = fromKey("KeyA", 'left');
+  const right$ = fromKey("KeyD", 'right');
+  const down$ = fromKey("KeyS", 'down');
+
+  const rotateLeft$ = fromKey("KeyZ", 'rotateLeft');
+  const rotateRight$ = fromKey("KeyX", 'rotateRight');
+
+  const restart$ = fromKey("KeyR", 'restart');
+
+  const tickRate$ = new BehaviorSubject(Tick_Rate.TICK_RATE_MS);
+
+  const tick$ = tickRate$.pipe(
+    switchMap((tickRate) => interval(tickRate))
+  );
+
+  /**
+   * Main game 
+   * 
+   * Manages the core logic for a Tetris game using RxJS observables.
+   * This module handles the game state, user input, and rendering.
+   * It responds to various user actions and updates the game state
+   * accordingly, including tetromino movement, rotation, and restarts.
+   * The rendered state is reflected in the game interface, and UI
+   * elements are displayed based on game over or restart conditions.
+   *
+   * @param tick$ Stream for game ticks
+   * @param left$ Stream for left movement
+   * @param right$ Stream for right movement
+   * @param down$ Stream for downward movement
+   * @param rotateLeft$ Stream for left rotation
+   * @param rotateRight$ Stream for right rotation
+   * @param restart$ Stream for restart action
+   */
   const source$ = merge(
     tick$,
     left$,
@@ -519,7 +654,6 @@ export function main() {
     rotateLeft$,
     rotateRight$,
     restart$
-
   ).pipe(
     scan((s: State, action: string | number) => {
       const update = removeFilledRows(s);
