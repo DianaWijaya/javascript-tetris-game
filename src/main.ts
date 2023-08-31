@@ -69,19 +69,19 @@ type Event = "keydown" | "keyup" | "keypress";
 
 const tetriminos = [
   // I Tetrimino
-  { index: 0, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], color: 'PaleGreen' },
+  { index: 0, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], color: '#E0D7FF' },
   // J Tetrimino
-  { index: 1, blocks: [{ x: 0, y: 1 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'MediumTurquoise' },
+  { index: 1, blocks: [{ x: 0, y: 1 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#FFCACB' },
   // L Tetrimino
-  { index: 2, blocks: [{ x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'PeachPuff' },
+  { index: 2, blocks: [{ x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#B4E5FF' },
   // O Tetrimino
-  { index: 3, blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: 'pink' },
+  { index: 3, blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: '#9CAAF2' },
   // T Tetrimino
-  { index: 4, blocks: [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'Salmon' },
+  { index: 4, blocks: [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#C5E8B4' },
   // Z Tetrimino
-  { index: 5, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'Thistle' },
+  { index: 5, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#F4F0D9' },
   // S Tetrimino
-  { index: 6, blocks: [{ x: 2, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 1 }], color: 'Teal' },
+  { index: 6, blocks: [{ x: 2, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 1 }], color: '#88C9C8' },
 ];
 
 /** State processing */
