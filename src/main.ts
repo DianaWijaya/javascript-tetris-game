@@ -15,7 +15,7 @@
 import "./style.css";
 
 import { fromEvent, interval, merge, noop, Observable } from "rxjs";
-import { map, filter, scan } from "rxjs/operators";
+import { map, filter, scan, switchMap } from "rxjs/operators";
 
 /** Constants */
 
@@ -71,11 +71,8 @@ export function createRngStreamFromSource<T>(source$: Observable<T>) {
   };
 }
 
-
-
-// const rngStream = createRngStreamFromSource(interval(50));
-
-// const randomStream$: Observable<number> = rngStream(42);
+const rngStream = createRngStreamFromSource(interval(50));
+const randomStream$: Observable<number> = rngStream(42);
 
 /** User input */
 
@@ -102,64 +99,6 @@ const tetriminos = [
   { index: 6, blocks: [{ x: 2, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 1 }], color: 'Teal' },
 ];
 
-const tetriminoWallKicks = [
-  // I Tetrimino
-  [
-    [{ x: 0, y: 0 }, { x: -2, y: 0 }, { x: 1, y: 0 }, { x: -2, y: -1 }, { x: 1, y: 2 }],
-    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: 2, y: 0 }, { x: -1, y: 2 }, { x: 2, y: -1 }],
-    [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: -1, y: 0 }, { x: 2, y: 1 }, { x: -1, y: -2 }],
-    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: -2, y: 0 }, { x: 1, y: -2 }, { x: -2, y: 1 }],
-  ],
-
-  // J Tetrimino
-  [
-    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }],
-    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }],
-    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
-    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }],
-  ],
-
-  // L Tetrimino
-  [
-    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
-    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }],
-    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }],
-    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }],
-  ],
-
-  // O Tetrimino
-  [
-    [{ x: 0, y: 0 }],
-    [{ x: 0, y: 0 }],
-    [{ x: 0, y: 0 }],
-    [{ x: 0, y: 0 }],
-  ],
-
-  // T Tetrimino
-  [
-    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }],
-    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
-    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }],
-    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }],
-  ],
-
-  // Z Tetrimino
-  [
-    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }],
-    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
-    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }],
-    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }],
-  ],
-
-  // S Tetrimino
-  [
-    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: -1 }, { x: 0, y: 2 }, { x: -1, y: 2 }],
-    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: 2 }, { x: 1, y: 2 }],
-    [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: -2 }, { x: 1, y: -2 }],
-    [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: -2 }, { x: -1, y: -2 }],
-  ],
-];
-
 /** State processing */
 
 const createSvgElement = (
@@ -180,7 +119,7 @@ function createNewBlock(): SVGElement[] {
   // const block = tetriminos[RandomNumber(0, 6)];
   const block = tetriminos[3];
 
-  const hehe: SVGElement[] = [];
+  const newBlock: SVGElement[] = [];
   const svg = document.querySelector("#svgCanvas") as SVGGraphicsElement &
     HTMLElement;
   block.blocks.map(element => {
@@ -191,9 +130,9 @@ function createNewBlock(): SVGElement[] {
       y: `${Block.HEIGHT * element.y}`,
       style: `fill: ${block.color}`,
     });
-    hehe.push(cube);
+    newBlock.push(cube);
   })
-  return hehe;
+  return newBlock;
 }
 
 type State = Readonly<{
@@ -204,6 +143,7 @@ type State = Readonly<{
   score: number;
   level: number;
   highScore: number;
+  currentTick: number;
 }>;
 
 const initialState: State = {
@@ -214,6 +154,7 @@ const initialState: State = {
   score: 0,
   level: 0,
   highScore: 0,
+  currentTick: Constants.TICK_RATE_MS,
 } as const;
 
 const checkGameEnd = (s: State) => {
@@ -271,6 +212,8 @@ export function main() {
   const preview = document.querySelector("#svgPreview") as SVGGraphicsElement &
     HTMLElement;
   const gameover = document.querySelector("#gameOver") as SVGGraphicsElement &
+    HTMLElement; 
+  const restartElement = document.querySelector("#restart") as SVGGraphicsElement &
     HTMLElement;
   const container = document.querySelector("#main") as HTMLElement;
 
@@ -315,8 +258,6 @@ export function main() {
 
   const rngStream = createRngStreamFromSource(interval(50));
   const randomBlockIndexStream$: Observable<number> = rngStream(42); // Use any seed you prefer
-
-  /** Observables */
 
   function canMoveHorizontally(currentBlock: SVGElement[], xOffset: number, existingBlocks: SVGElement[]): boolean {
     return currentBlock.every(element => {
@@ -509,10 +450,50 @@ export function main() {
     return s;
   };
 
+  const restart = (s: State) => {
+    existingBlocks.map(element => {
+      element.remove();
+    });
+
+    existingBlocks.splice(0, existingBlocks.length);
+    
+    s.currentBlock.map(element => {
+      element.remove();
+    });
+    s.nextBlock.map(element => {
+      element.remove();
+    });
+    console.log(existingBlocks);
+
+
+    return {
+      ...s,
+      gameEnd: false,
+      currentBlock: createNewBlock(),
+      nextBlock: createNewBlock(),
+      score: 0,
+      level: 0,
+      currentTick: Constants.TICK_RATE_MS,
+    }
+  }
+
+  // Calculate the tick rate based on the current level
+  const calculateTickRate = (currentLevel: number) => {
+    const baseTickRate = Constants.TICK_RATE_MS; // The base tick rate
+    const levelFactor = 100; // A factor to adjust the tick rate based on level
+    const newTickRate = baseTickRate - currentLevel * levelFactor;
+    return newTickRate < 100 ? 100 : newTickRate; // Set a minimum tick rate
+  };
+
   /** Determines the rate of time steps */
-  const tick$ = interval(Constants.TICK_RATE_MS);
+  const tick$ = interval(Constants.TICK_RATE_MS)
 
   const tick = (s: State, score: number, level: number, highScore: number) => {
+    console.log(existingBlocks);
+    if (s.gameEnd == true) {
+      return restart(s);
+    }
+
     if (canMoveVertically(s.currentBlock, Block.HEIGHT) && !checkCollision(s.currentBlock, existingBlocks)) {
       const newBlock = s.currentBlock.map(element => {
         const y = Number(element.getAttribute("y")) + Block.HEIGHT;
@@ -530,12 +511,12 @@ export function main() {
     }
   }
 
-  function getXAndYOfBlock(block: SVGElement[]): [number, number, string] {
-    const x: number = Number(block[0].getAttribute('x'));
-    const y: number = Number(block[0].getAttribute('y'));
-    const z: string = block[0].getAttribute('style')!;
-    return [x, y, z];
-  }
+  // function getXAndYOfBlock(block: SVGElement[]): [number, number, string] {
+  //   const x: number = Number(block[0].getAttribute('x'));
+  //   const y: number = Number(block[0].getAttribute('y'));
+  //   const z: string = block[0].getAttribute('style')!;
+  //   return [x, y, z];
+  // }
 
   /**
    * Renders the current state to the canvas.
@@ -611,11 +592,13 @@ export function main() {
   )
   .subscribe((s: State) => {
     render(s);
-
+  
     if (s.gameEnd) {
-      source$.unsubscribe();
+      // source$.unsubscribe();
       show(gameover);
-    } else {
+    } 
+    
+    else {
       hide(gameover);
     }
   });
