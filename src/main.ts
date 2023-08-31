@@ -14,7 +14,7 @@
 
 import "./style.css";
 
-import { fromEvent, interval, merge, noop, Observable } from "rxjs";
+import { BehaviorSubject, fromEvent, interval, merge, noop, Observable } from "rxjs";
 import { map, filter, scan, switchMap } from "rxjs/operators";
 
 /** Constants */
@@ -27,10 +27,14 @@ const Viewport = {
 } as const;
 
 const Constants = {
-  TICK_RATE_MS: 500,
+  // TICK_RATE_MS: 500,
   GRID_WIDTH: 10,
   GRID_HEIGHT: 20,
 } as const;
+
+const Tick_Rate = {
+  TICK_RATE_MS: 500,
+}
 
 const Block = {
   WIDTH: Viewport.CANVAS_WIDTH / Constants.GRID_WIDTH,
@@ -100,7 +104,6 @@ const RNGGenerator = new RNG(987654321);
 
 function createNewBlock(): SVGElement[] {
   const block = tetriminos[RNGGenerator.randomInt(0, tetriminos.length - 1)];
-  // const block = tetriminos[3];
 
   const newBlock: SVGElement[] = [];
   const svg = document.querySelector("#svgCanvas") as SVGGraphicsElement &
@@ -122,7 +125,6 @@ type State = Readonly<{
   gameEnd: boolean;
   currentBlock: SVGElement[];
   nextBlock: SVGElement[];
-  // grid: Grid;
   score: number;
   level: number;
   highScore: number;
@@ -133,11 +135,10 @@ const initialState: State = {
   gameEnd: false,
   currentBlock: createNewBlock(),
   nextBlock: createNewBlock(),
-  // grid: createGrid(),
   score: 0,
   level: 0,
   highScore: 0,
-  currentTick: Constants.TICK_RATE_MS,
+  currentTick: Tick_Rate.TICK_RATE_MS,
 } as const;
 
 const checkGameEnd = (s: State) => {
@@ -317,20 +318,12 @@ export function main() {
   }
 
   const calculateLevel = (score: number): number => {
-    const level = Math.floor(score / 400);
-    if (score <= 2000) {
-      return level;
-    }
-
-    else {
-      return 6;
-    }
+    const level = Math.floor(score / 300);
+    return level;
   }
 
   const calculateScore = (clearedRows: number): number => {
-  // You can define your scoring logic here
-  // For example, you can give more points for clearing more rows
-  return clearedRows * 100;
+    return clearedRows * 100;
   };
 
   const move = (s: State, movement: number, score: number, level: number, highScore: number): State => {
@@ -455,22 +448,30 @@ export function main() {
       nextBlock: createNewBlock(),
       score: 0,
       level: 0,
-      currentTick: Constants.TICK_RATE_MS,
+      currentTick: Tick_Rate.TICK_RATE_MS,
     }
   }
 
-  // Calculate the tick rate based on the current level
-  const calculateTickRate = (currentLevel: number) => {
-    const baseTickRate = Constants.TICK_RATE_MS; // The base tick rate
-    const levelFactor = 100; // A factor to adjust the tick rate based on level
-    const newTickRate = baseTickRate - currentLevel * levelFactor;
-    return newTickRate < 100 ? 100 : newTickRate; // Set a minimum tick rate
+  const calculateNextTickRate = (s: State) => {
+    const baseTickRate = Tick_Rate.TICK_RATE_MS;
+    const newTickRate = baseTickRate - s.level * 50;
+    if (newTickRate > 200) {
+      return newTickRate;
+    }
+
+    return 200;
   };
 
-  const tick$ = interval(Constants.TICK_RATE_MS)
+  const tickRate$ = new BehaviorSubject(Tick_Rate.TICK_RATE_MS);
+  const tick$ = tickRate$.pipe(
+    switchMap((tickRate) => interval(tickRate))
+  );
 
   const tick = (s: State, score: number, level: number, highScore: number) => {
     console.log(existingBlocks);
+
+    const newTickRate = calculateNextTickRate(s);
+    tickRate$.next(s.currentTick);
 
     if (canMoveVertically(s.currentBlock, Block.HEIGHT) && !checkCollision(s.currentBlock, existingBlocks)) {
       const newBlock = s.currentBlock.map(element => {
@@ -479,23 +480,19 @@ export function main() {
         return element;
       }, []);
 
-      return { ...s, currentBlock: newBlock, gameEnd: checkGameEnd(s) };
+      return { ...s, currentBlock: newBlock, gameEnd: checkGameEnd(s), score: score, level: level, highScore: highScore, currentTick: newTickRate };
     } 
     else {
       existingBlocks.push(...s.currentBlock);
       const newBlock = s.nextBlock; 
       const nextBlock = createNewBlock();
-      return { ...s, currentBlock: newBlock, nextBlock: nextBlock, gameEnd: checkGameEnd(s), score: score, level: level, highScore: highScore };
+
+      console.log(s.currentTick)
+
+      return { ...s, currentBlock: newBlock, nextBlock: nextBlock, gameEnd: checkGameEnd(s), score: score, level: level, highScore: highScore, currentTick: newTickRate };
     }
   };
 
-  /**
-   * Renders the current state to the canvas.
-   *
-   * In MVC terms, this updates the View using the Model.
-   *
-   * @param s Current state
-   */
   const render = (s: State) => {
     s.currentBlock.map(element => {
       svg.appendChild(element);
@@ -548,6 +545,8 @@ export function main() {
           }
         default:
           if (s.gameEnd == false) {
+          const currentTickRate = calculateNextTickRate(s);
+          tickRate$.next(currentTickRate);
           return tick(s, newScore, newLevel, highScore);
           }
 
@@ -561,22 +560,11 @@ export function main() {
     render(s);
   
     if (s.gameEnd) {
-      // source$.unsubscribe();
       show(restartGame);
     }
     else {
       hide(gameover);
     }
-
-    // if (s.gameEnd == true) {
-    //   show(gameover);
-    //   show(restartGame);
-    //   // return restart(s);
-    // }
-
-    // else {
-    //   hide(gameover)
-    // }
   });
 }
 
