@@ -178,6 +178,7 @@ const initialState: State = {
 
 /**
  * Displays a SVG element on the canvas. Brings to foreground.
+ * 
  * @param elem SVG element to display
  */
 const show = (elem: SVGGraphicsElement) => {
@@ -187,11 +188,11 @@ const show = (elem: SVGGraphicsElement) => {
 
 /**
  * Hides a SVG element on the canvas.
+ * 
  * @param elem SVG element to hide
  */
 const hide = (elem: SVGGraphicsElement) =>
   elem.setAttribute("visibility", "hidden");
-
 
 /**
  * This is the function called on page load. Your main game loop
@@ -220,10 +221,12 @@ export function main() {
   const scoreText = document.querySelector("#scoreText") as HTMLElement;
   const highScoreText = document.querySelector("#highScoreText") as HTMLElement;
 
+  // List of existing blocks in the canvas
   const existingBlocks: SVGElement[] = [];
 
   /** User input */
 
+  // Function to create an observable from a key press
   const fromKey = (keyCode: Key, movement: string) =>
       key$.pipe(filter(({ code }) => code === keyCode), map(_ => movement));
 
@@ -238,11 +241,16 @@ export function main() {
    * @returns Boolean that shows if the block can move horizontally
    */
   const canMoveHorizontally = (currentBlock: SVGElement[], xOffset: number, existingBlocks: SVGElement[]): boolean => {
+
+    // Go through each and every element in the current block
     return currentBlock.every(element => {
       const newX = Number(element.getAttribute('x')) + xOffset;
+
+      // Check if the new x coordinate is within the canvas, and if it will collide with an existing block
       return newX >= 0 && newX + Block.WIDTH <= Viewport.CANVAS_WIDTH && !existingBlocks.some(block => {
         const existingX = Number(block.getAttribute('x'));
         const existingY = Number(block.getAttribute('y'));
+
         return newX === existingX && existingY === Number(element.getAttribute('y'));
       });
     });
@@ -256,8 +264,12 @@ export function main() {
    * @returns Boolean that shows if the block can move vertically
    */
   const canMoveVertically = (currentBlock: SVGElement[], yOffset: number): boolean => {
+
+    // Go through each and every element in the current block
     return currentBlock.every(element => {
       const newY = Number(element.getAttribute('y')) + yOffset;
+
+      // Check if the new y coordinate is within the canvas
       return newY >= 0 && newY + Block.HEIGHT <= Viewport.CANVAS_HEIGHT;
     });
   }
@@ -270,55 +282,79 @@ export function main() {
    * @returns Boolean that shows if the current block collide with an existing block
    */
   const checkCollision = (currentBlock: SVGElement[], existingBlocks: SVGElement[]): boolean => {
+
+    // Check if any of the elements in the current block collide with an existing block
     return currentBlock.some(element => {
       const newX = Number(element.getAttribute('x'));
       const newY = Number(element.getAttribute('y'));
       return existingBlocks.some(block => {
         const existingX = Number(block.getAttribute('x'));
         const existingY = Number(block.getAttribute('y'));
+
+        // Returns true if the new x and y coordinates of the current block is the same as the existing block, meaning that they collide
         return newX === existingX && newY + Block.HEIGHT === existingY;
       });
     });
   }
 
   /**
-   * Function that removes filled rows and updates the score, level and high score
+   * Removes filled rows from the game grid, updates game scores and levels, and manages the high score
+   * Modifies the game state by removing rows of fully occupied blocks and adjusting the game metrics
    * 
    * @param s The state
    * @returns A list containing the new score, level and high score
    */
   const removeFilledRows = (s: State): [number, number, number] => {
     const rows: number[] = [];
+
+    // Maps through existing blocks to gather unique y-coordinates
     existingBlocks.map(element => {
       const y = Number(element.getAttribute('y'));
+
+      // Check if y-coordinate is not already collected, then add to the list
       if (!rows.includes(y)) {
         rows.push(y);
       }
     });
-  
+
+    // Identify and filter out the rows with fully occupied blocks
     const clearedRows: number[] = rows.filter(row => {
+
+      // Filter out the blocks that are in the current row
       const rowBlocks = existingBlocks.filter(element => {
         const y = Number(element.getAttribute('y'));
         return y === row;
       });
+
+      // Check if the current row has all blocks filled
       return rowBlocks.length === Constants.GRID_WIDTH;
     });
   
+    // Calculate new score, level, and high score
     const newScore = s.score + calculateScore(clearedRows.length);
     const newLevel = calculateLevel(newScore);
     const highScore = newScore > s.highScore ? newScore : s.highScore;
   
+    // Update the game grid after removing filled rows
     rows.sort((a, b) => a - b);
     rows.map(row => {
+
+      // Find blocks in the cleared row
       const rowBlocks = existingBlocks.filter(element => {
         const y = Number(element.getAttribute('y'));
         return y === row;
       });
+
+      // Remove blocks and update existingBlocks array
       if (rowBlocks.length === Constants.GRID_WIDTH) {
         rowBlocks.map(element => {
           element.remove();
-          existingBlocks.splice(existingBlocks.indexOf(element), 1); // Remove from the existingBlocks array
+
+          // Remove from the existingBlocks array
+          existingBlocks.splice(existingBlocks.indexOf(element), 1);
         });
+
+        // Shift blocks above the cleared row
         existingBlocks.map(element => {
           const y = Number(element.getAttribute('y'));
           if (y < row) {
@@ -367,12 +403,15 @@ export function main() {
    */
   const move = (s: State, movement: number, score: number, level: number, highScore: number): State => {
     const isMovementValid = (dx: number, dy: number): boolean =>
+
+      // Check if the block can move horizontally, vertically, and if there will be a collision
       (
         canMoveHorizontally(s.currentBlock, dx, existingBlocks) &&
         canMoveVertically(s.currentBlock, dy) &&
         !checkCollision(s.currentBlock, existingBlocks)
       );
   
+    // Function to move the block by 1 block width or height based on the user input
     const moveElement = (
       element: SVGElement,
       dx: number,
@@ -385,9 +424,11 @@ export function main() {
       return element;
     };
   
+    // Function to apply the movement to the block
     const applyMovement = (dx: number, dy: number): SVGElement[] =>
       s.currentBlock.map((element) => moveElement(element, dx, dy));
   
+    // Check which movement user inputted, and if it is valid, then apply the movement to the block
     const newBlock: SVGElement[] =
       movement === 1 && isMovementValid(Block.WIDTH, 0)
         ? applyMovement(Block.WIDTH, 0)
@@ -409,12 +450,18 @@ export function main() {
    * @returns Two values for the new x and y coordinates of the block
    */
   const calculateNewBlockPositions = (block: SVGElement[], centerPosition: { x: number, y: number }, rotationFactor: 1 | -1) => {
+
+    // Map through each element in the block, and calculate the new x and y coordinates using the center coordinates
     return block.map(element => {
+
+      // Calculation for displacement of the block element from the center point
       const relativeX = Number(element.getAttribute("x")) - centerPosition.x;
       const relativeY = Number(element.getAttribute("y")) - centerPosition.y;
   
+      // Calclation for the new x and y coordinates of the block element after rotation
       const newX = centerPosition.x + rotationFactor * relativeY;
       const newY = centerPosition.y - rotationFactor * relativeX;
+
       return { x: newX, y: newY };
     });
   };
@@ -430,6 +477,8 @@ export function main() {
    */
   const isValidRotation = (newBlockPositions: { x: number, y: number }[], existingBlocks: SVGElement[], canvasWidth: number, canvasHeight: number) => {
     return newBlockPositions.every(({ x, y }) => {
+
+      // Check if the new x and y coordinates are within the canvas
       const checkWithinCanvas = (
         (x >= 0) && 
         (x + Block.WIDTH <= canvasWidth) && 
@@ -437,6 +486,7 @@ export function main() {
         (y + Block.HEIGHT <= canvasHeight)
       );
   
+      // Check if the new x and y coordinates will collide with an existing block
       const checkCollision = existingBlocks.some(block => {
         const existingX = Number(block.getAttribute("x"));
         const existingY = Number(block.getAttribute("y"));
@@ -444,7 +494,6 @@ export function main() {
       });
 
       const canRotate = checkWithinCanvas && !checkCollision;
-  
       return canRotate;
     });
   };
@@ -476,11 +525,14 @@ export function main() {
    * @returns The state with the updated block positions, if the block can rotate
    */
   const rotate = (s: State, rotationFactor: 1 | -1, score: number, level: number, highScore: number) => {
+
+    // Check if the block is an O block, if it is, then don't rotate it
     const oBlockIndex = 3;
     if (s.currentBlock[0].getAttribute('style')!.includes(tetrominos[oBlockIndex].color)) {
       return s;
     }
 
+    // The center block is always placed in array index 2
     const centerBlock = s.currentBlock[2];
     const centerPositionX = Number(centerBlock.getAttribute("x"));
     const centerPositionY = Number(centerBlock.getAttribute("y"));
@@ -489,6 +541,7 @@ export function main() {
   
     const validRotation = isValidRotation(newBlockPositions, existingBlocks, Viewport.CANVAS_WIDTH, Viewport.CANVAS_HEIGHT);
   
+    // Return the new state with the updated block positions if the block can rotate
     if (validRotation) {
       const rotatedBlock = applyNewBlockPositions(s.currentBlock, newBlockPositions);
       if (!checkCollision(rotatedBlock, existingBlocks)) {
@@ -506,20 +559,22 @@ export function main() {
    * @returns The defaulted state when restart is called
    */
   const restart = (s: State) => {
+
+    // Remove all existing blocks from the canvas
     existingBlocks.map(element => {
       element.remove();
     });
 
+    // Reset the existingBlocks array
     existingBlocks.splice(0, existingBlocks.length);
     
+    // Reset the current block and next block
     s.currentBlock.map(element => {
       element.remove();
     });
     s.nextBlock.map(element => {
       element.remove();
     });
-    console.log(existingBlocks);
-
 
     return {
       ...s,
@@ -558,11 +613,12 @@ export function main() {
    * @returns The updated state with the new tick rate, and the new block if the block can move down, level, high score, and score
    */
   const tick = (s: State, score: number, level: number, highScore: number) => {
-    console.log(existingBlocks);
 
+    // Update the tick rate
     const newTickRate = calculateNextTickRate(s);
     tickRate$.next(s.currentTick);
 
+    // If the block can still move down, then move the block down by 1 block height
     if (canMoveVertically(s.currentBlock, Block.HEIGHT) && !checkCollision(s.currentBlock, existingBlocks)) {
       const newBlock = s.currentBlock.map(element => {
         const y = Number(element.getAttribute("y")) + Block.HEIGHT;
@@ -572,12 +628,12 @@ export function main() {
 
       return { ...s, currentBlock: newBlock, gameEnd: checkGameEnd(s), score: score, level: level, highScore: highScore, currentTick: newTickRate };
     } 
+
+    // Else, add the current block to the existing blocks array, and create a new block
     else {
       existingBlocks.push(...s.currentBlock);
       const newBlock = s.nextBlock; 
       const nextBlock = createNewBlock();
-
-      console.log(s.currentTick)
 
       return { ...s, currentBlock: newBlock, nextBlock: nextBlock, gameEnd: checkGameEnd(s), score: score, level: level, highScore: highScore, currentTick: newTickRate };
     }
@@ -599,7 +655,7 @@ export function main() {
     levelText.textContent = `${s.level}`;
     highScoreText.textContent = `${s.highScore}`;
     
-    // Add a block to the preview canvas
+    // Add the next block to the preview canvas
     s.nextBlock.map(element => {
       preview.appendChild(element);
     } 
@@ -613,17 +669,22 @@ export function main() {
 
   const key$ = fromEvent<KeyboardEvent>(document, "keypress");
 
+  // Movement keys
   const left$ = fromKey("KeyA", 'left');
   const right$ = fromKey("KeyD", 'right');
   const down$ = fromKey("KeyS", 'down');
 
+  // Rotation keys
   const rotateLeft$ = fromKey("KeyZ", 'rotateLeft');
   const rotateRight$ = fromKey("KeyX", 'rotateRight');
 
+  // Restart key
   const restart$ = fromKey("KeyR", 'restart');
 
+  // Tick rate
   const tickRate$ = new BehaviorSubject(Tick_Rate.TICK_RATE_MS);
 
+  // Tick stream
   const tick$ = tickRate$.pipe(
     switchMap((tickRate) => interval(tickRate))
   );
@@ -656,6 +717,7 @@ export function main() {
     restart$
   ).pipe(
     scan((s: State, action: string | number) => {
+      // From the updated list of existing blocks, remove filled rows and update the score, level, and high score
       const update = removeFilledRows(s);
       const newScore = update[0];
       const newLevel = update[1];
@@ -679,9 +741,9 @@ export function main() {
           }
         default:
           if (s.gameEnd == false) {
-          const currentTickRate = calculateNextTickRate(s);
-          tickRate$.next(currentTickRate);
-          return tick(s, newScore, newLevel, highScore);
+            const currentTickRate = calculateNextTickRate(s);
+            tickRate$.next(currentTickRate);
+            return tick(s, newScore, newLevel, highScore);
           }
 
           else {
@@ -708,4 +770,3 @@ if (typeof window !== "undefined") {
     main();
   };
 }
-
