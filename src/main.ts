@@ -79,7 +79,7 @@ export function createRngStreamFromSource<T>(source$: Observable<T>) {
 
 /** User input */
 
-type Key = "KeyS" | "KeyA" | "KeyD" | "KeyZ" | "KeyX";
+type Key = "KeyS" | "KeyA" | "KeyD" | "KeyZ" | "KeyX" | "ArrowRight" | "ArrowLeft" | "ArrowDown";
 
 type Event = "keydown" | "keyup" | "keypress";
 
@@ -87,9 +87,9 @@ type Event = "keydown" | "keyup" | "keypress";
 
 const tetriminos = [
   // I Tetrimino
-  { index: 0, blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], color: 'PaleGreen' },
+  { index: 0, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], color: 'PaleGreen' },
   // J Tetrimino
-  { index: 1, blocks: [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'MediumTurquoise' },
+  { index: 1, blocks: [{ x: 0, y: 1 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'MediumTurquoise' },
   // L Tetrimino
   { index: 2, blocks: [{ x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'PeachPuff' },
   // O Tetrimino
@@ -97,9 +97,9 @@ const tetriminos = [
   // T Tetrimino
   { index: 4, blocks: [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'Salmon' },
   // Z Tetrimino
-  { index: 5, blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'Thistle' },
+  { index: 5, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: 'Thistle' },
   // S Tetrimino
-  { index: 6, blocks: [{ x: 1, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: 'Teal' },
+  { index: 6, blocks: [{ x: 2, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 1 }], color: 'Teal' },
 ];
 
 const tetriminoWallKicks = [
@@ -177,7 +177,8 @@ function RandomNumber(min: number, max: number): number {
 }
 
 function createNewBlock(): SVGElement[] {
-  const block = tetriminos[RandomNumber(0, 6)];
+  // const block = tetriminos[RandomNumber(0, 6)];
+  const block = tetriminos[3];
 
   const hehe: SVGElement[] = [];
   const svg = document.querySelector("#svgCanvas") as SVGGraphicsElement &
@@ -290,7 +291,16 @@ export function main() {
   const key$ = fromEvent<KeyboardEvent>(document, "keypress");
 
   const fromKey = (keyCode: Key, movement: string) =>
-      key$.pipe(filter(({ code }) => code === keyCode), map(_ => movement));
+  merge(
+    key$.pipe(
+      filter(({ code, type }) => type === "keypress" && (code === keyCode || code === `Arrow${movement}`)),
+      map(_ => movement)
+    ),
+    key$.pipe(
+      filter(({ code, type }) => type === "keydown" && (code === keyCode || code === `Arrow${movement}`)),
+      map(_ => movement)
+    )
+  );
 
   const left$ = fromKey("KeyA", 'left');
   const right$ = fromKey("KeyD", 'right');
@@ -298,6 +308,10 @@ export function main() {
 
   const rotateLeft$ = fromKey("KeyZ", 'rotateLeft');
   const rotateRight$ = fromKey("KeyX", 'rotateRight');
+
+  const arrowLeft$ = fromKey("ArrowLeft", "left");
+  const arrowRight$ = fromKey("ArrowRight", "right");
+  const arrowDown$ = fromKey("ArrowDown", "down");
 
   const rngStream = createRngStreamFromSource(interval(50));
   const randomBlockIndexStream$: Observable<number> = rngStream(42); // Use any seed you prefer
@@ -398,9 +412,11 @@ export function main() {
 
   const move = (s: State, movement: number, score: number, level: number, highScore: number): State => {
     const isMovementValid = (dx: number, dy: number): boolean =>
-      canMoveHorizontally(s.currentBlock, dx, existingBlocks) &&
-      canMoveVertically(s.currentBlock, dy) &&
-      !checkCollision(s.currentBlock, existingBlocks);
+      (
+        canMoveHorizontally(s.currentBlock, dx, existingBlocks) &&
+        canMoveVertically(s.currentBlock, dy) &&
+        !checkCollision(s.currentBlock, existingBlocks)
+      );
   
     const moveElement = (
       element: SVGElement,
@@ -442,15 +458,22 @@ export function main() {
   
   const isValidRotation = (newBlockPositions: { x: number, y: number }[], existingBlocks: SVGElement[], canvasWidth: number, canvasHeight: number) => {
     return newBlockPositions.every(({ x, y }) => {
-      const withinCanvas = x >= 0 && x + Block.WIDTH <= canvasWidth && y >= 0 && y + Block.HEIGHT <= canvasHeight;
+      const checkWithinCanvas = (
+        (x >= 0) && 
+        (x + Block.WIDTH <= canvasWidth) && 
+        (y >= 0) && 
+        (y + Block.HEIGHT <= canvasHeight)
+      );
   
-      const collides = existingBlocks.some(block => {
+      const checkCollision = existingBlocks.some(block => {
         const existingX = Number(block.getAttribute("x"));
         const existingY = Number(block.getAttribute("y"));
         return Math.abs(x - existingX) < Block.WIDTH && Math.abs(y - existingY) < Block.HEIGHT;
       });
+
+      const canRotate = checkWithinCanvas && !checkCollision;
   
-      return withinCanvas && !collides;
+      return canRotate;
     });
   };
   
@@ -463,10 +486,15 @@ export function main() {
   };
   
   const rotate = (s: State, rotationFactor: 1 | -1) => {
+    const oBlockIndex = 3;
+    if (s.currentBlock[0].getAttribute('style')!.includes(tetriminos[oBlockIndex].color)) {
+      return s;
+    }
+
     const centerBlock = s.currentBlock[2];
     const centerPositionX = Number(centerBlock.getAttribute("x"));
     const centerPositionY = Number(centerBlock.getAttribute("y"));
-  
+
     const newBlockPositions = calculateNewBlockPositions(s.currentBlock, { x: centerPositionX, y: centerPositionY }, rotationFactor);
   
     const validRotation = isValidRotation(newBlockPositions, existingBlocks, Viewport.CANVAS_WIDTH, Viewport.CANVAS_HEIGHT);
@@ -480,7 +508,6 @@ export function main() {
   
     return s;
   };
-  
 
   /** Determines the rate of time steps */
   const tick$ = interval(Constants.TICK_RATE_MS);
@@ -549,29 +576,38 @@ export function main() {
 
   render(initialState);
 
-  const source$ = merge(tick$, left$, right$, down$, rotateLeft$, rotateRight$)
-  .pipe(
+  const source$ = merge(
+    tick$,
+    left$,
+    right$,
+    down$,
+    rotateLeft$,
+    rotateRight$,
+    arrowLeft$,
+    arrowRight$,
+    arrowDown$
+  ).pipe(
     scan((s: State, action: string | number) => {
       const update = removeFilledRows(s);
       const newScore = update[0];
       const newLevel = update[1];
       const highScore = update[2];
-
+  
       switch (action) {
-        case 'right':
+        case "right":
           return move(s, 1, newScore, newLevel, highScore);
-        case 'left':
+        case "left":
           return move(s, -1, newScore, newLevel, highScore);
-        case 'down':
+        case "down":
           return move(s, 0, newScore, newLevel, highScore);
-        case 'rotateLeft':
+        case "rotateLeft":
           return rotate(s, 1);
-        case 'rotateRight':
+        case "rotateRight":
           return rotate(s, -1);
         default:
           return tick(s, newScore, newLevel, highScore);
       }
-    }, initialState),
+    }, initialState)
   )
   .subscribe((s: State) => {
     render(s);
