@@ -37,46 +37,27 @@ const Block = {
   HEIGHT: Viewport.CANVAS_HEIGHT / Constants.GRID_HEIGHT,
 };
 
-const { hash, scaleToRange } = (() => {
-  // LCG using GCC's constants
-  const m = 0x80000000; // 2**31
-  const a = 1103515245;
-  const c = 12345;
+class RNG {
+  private static m = 0x80000000; // 2**31
+  private static a = 1103515245;
+  private static c = 12345;
 
-  const hash = (n: number) => (a * n + c) % m;
-  /**
-   * Takes hash value and scales it to the range [0, 6]
-   */
-  const scaleToRange = (n: number) => (6 * n) / (m - 1);
+  private seed: number;
 
-  return { hash, scaleToRange };
-})();
+  constructor(seed: number) {
+    this.seed = seed;
+  }
 
-/**
- * Creates a stream of random numbers in the range [0, 6]
- *
- * @param source$ The source Observable, elements of this are replaced with random numbers
- * @param seed The seed for the random number generator
- */
-export function createRngStreamFromSource<T>(source$: Observable<T>) {
-  return function createRngStream(
-    seed: number = 0
-  ): Observable<number> {
-    const randomNumberStream = source$.pipe(
-      scan((state: number, _: T) => hash(state), seed),  // Accumulate values over time 
-      map((hashed: number) => scaleToRange(hashed))  // Scale the values to the range [0, 6]
-    );
-
-    return randomNumberStream;
-  };
+  public randomInt(min:number, max: number): number {
+    const range = max - min + 1;
+    this.seed = (RNG.a * this.seed + RNG.c) % RNG.m;
+    return min + (this.seed % range);
+  }
 }
-
-const rngStream = createRngStreamFromSource(interval(50));
-const randomStream$: Observable<number> = rngStream(42);
 
 /** User input */
 
-type Key = "KeyS" | "KeyA" | "KeyD" | "KeyZ" | "KeyX" | "ArrowRight" | "ArrowLeft" | "ArrowDown";
+type Key = "KeyS" | "KeyA" | "KeyD" | "KeyZ" | "KeyX" | "KeyR";
 
 type Event = "keydown" | "keyup" | "keypress";
 
@@ -115,9 +96,11 @@ function RandomNumber(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+const RNGGenerator = new RNG(987654321);
+
 function createNewBlock(): SVGElement[] {
-  // const block = tetriminos[RandomNumber(0, 6)];
-  const block = tetriminos[3];
+  const block = tetriminos[RNGGenerator.randomInt(0, tetriminos.length - 1)];
+  // const block = tetriminos[3];
 
   const newBlock: SVGElement[] = [];
   const svg = document.querySelector("#svgCanvas") as SVGGraphicsElement &
@@ -189,6 +172,10 @@ const show = (elem: SVGGraphicsElement) => {
 const hide = (elem: SVGGraphicsElement) =>
   elem.setAttribute("visibility", "hidden");
 
+const showRestart = (elem: SVGGraphicsElement) => {
+  elem.setAttribute("visibility", "visible");
+};
+
 /**
  * Creates an SVG element with the given properties.
  *
@@ -213,7 +200,7 @@ export function main() {
     HTMLElement;
   const gameover = document.querySelector("#gameOver") as SVGGraphicsElement &
     HTMLElement; 
-  const restartElement = document.querySelector("#restart") as SVGGraphicsElement &
+  const restartGame = document.querySelector("#restart") as SVGGraphicsElement &
     HTMLElement;
   const container = document.querySelector("#main") as HTMLElement;
 
@@ -252,12 +239,7 @@ export function main() {
   const rotateLeft$ = fromKey("KeyZ", 'rotateLeft');
   const rotateRight$ = fromKey("KeyX", 'rotateRight');
 
-  const arrowLeft$ = fromKey("ArrowLeft", "left");
-  const arrowRight$ = fromKey("ArrowRight", "right");
-  const arrowDown$ = fromKey("ArrowDown", "down");
-
-  const rngStream = createRngStreamFromSource(interval(50));
-  const randomBlockIndexStream$: Observable<number> = rngStream(42); // Use any seed you prefer
+  const restart$ = fromKey("KeyR", 'restart');
 
   function canMoveHorizontally(currentBlock: SVGElement[], xOffset: number, existingBlocks: SVGElement[]): boolean {
     return currentBlock.every(element => {
@@ -291,7 +273,7 @@ export function main() {
 
   function removeFilledRows(s: State): [number, number, number] {
     const rows: number[] = [];
-    existingBlocks.forEach(element => {
+    existingBlocks.map(element => {
       const y = Number(element.getAttribute('y'));
       if (!rows.includes(y)) {
         rows.push(y);
@@ -311,17 +293,17 @@ export function main() {
     const highScore = newScore > s.highScore ? newScore : s.highScore;
   
     rows.sort((a, b) => a - b);
-    rows.forEach(row => {
+    rows.map(row => {
       const rowBlocks = existingBlocks.filter(element => {
         const y = Number(element.getAttribute('y'));
         return y === row;
       });
       if (rowBlocks.length === Constants.GRID_WIDTH) {
-        rowBlocks.forEach(element => {
+        rowBlocks.map(element => {
           element.remove();
           existingBlocks.splice(existingBlocks.indexOf(element), 1); // Remove from the existingBlocks array
         });
-        existingBlocks.forEach(element => {
+        existingBlocks.map(element => {
           const y = Number(element.getAttribute('y'));
           if (y < row) {
             const newY = y + Block.HEIGHT;
@@ -426,7 +408,7 @@ export function main() {
     });
   };
   
-  const rotate = (s: State, rotationFactor: 1 | -1) => {
+  const rotate = (s: State, rotationFactor: 1 | -1, score: number, level: number, highScore: number) => {
     const oBlockIndex = 3;
     if (s.currentBlock[0].getAttribute('style')!.includes(tetriminos[oBlockIndex].color)) {
       return s;
@@ -443,7 +425,7 @@ export function main() {
     if (validRotation) {
       const rotatedBlock = applyNewBlockPositions(s.currentBlock, newBlockPositions);
       if (!checkCollision(rotatedBlock, existingBlocks)) {
-        return { ...s, currentBlock: rotatedBlock };
+        return { ...s, currentBlock: rotatedBlock, score: score, level: level, highScore: highScore  };
       }
     }
   
@@ -485,14 +467,10 @@ export function main() {
     return newTickRate < 100 ? 100 : newTickRate; // Set a minimum tick rate
   };
 
-  /** Determines the rate of time steps */
   const tick$ = interval(Constants.TICK_RATE_MS)
 
   const tick = (s: State, score: number, level: number, highScore: number) => {
     console.log(existingBlocks);
-    if (s.gameEnd == true) {
-      return restart(s);
-    }
 
     if (canMoveVertically(s.currentBlock, Block.HEIGHT) && !checkCollision(s.currentBlock, existingBlocks)) {
       const newBlock = s.currentBlock.map(element => {
@@ -509,14 +487,7 @@ export function main() {
       const nextBlock = createNewBlock();
       return { ...s, currentBlock: newBlock, nextBlock: nextBlock, gameEnd: checkGameEnd(s), score: score, level: level, highScore: highScore };
     }
-  }
-
-  // function getXAndYOfBlock(block: SVGElement[]): [number, number, string] {
-  //   const x: number = Number(block[0].getAttribute('x'));
-  //   const y: number = Number(block[0].getAttribute('y'));
-  //   const z: string = block[0].getAttribute('style')!;
-  //   return [x, y, z];
-  // }
+  };
 
   /**
    * Renders the current state to the canvas.
@@ -526,7 +497,7 @@ export function main() {
    * @param s Current state
    */
   const render = (s: State) => {
-    s.currentBlock.forEach(element => {
+    s.currentBlock.map(element => {
       svg.appendChild(element);
     });
   
@@ -535,24 +506,10 @@ export function main() {
     highScoreText.textContent = `${s.highScore}`;
     
     // Add a block to the preview canvas
-    s.nextBlock.forEach(element => {
+    s.nextBlock.map(element => {
       preview.appendChild(element);
     } 
     );
-
-    // s.nextBlock.forEach(element => {
-    //   const [x, y, z] = getXAndYOfBlock(s.nextBlock);
-    //   const cubePreview = createSvgElement(preview.namespaceURI, "rect", {
-    //     height: `${Block.HEIGHT}`,
-    //     width: `${Block.WIDTH}`,
-    //     x: `${Block.WIDTH * 2 + x}`,
-    //     y: `${Block.HEIGHT + y}`,
-    //     style: `${z}`,
-    //   });
-    //   preview.appendChild(cubePreview);
-    // }
-    // );
-
   };
 
   render(initialState);
@@ -564,9 +521,8 @@ export function main() {
     down$,
     rotateLeft$,
     rotateRight$,
-    arrowLeft$,
-    arrowRight$,
-    arrowDown$
+    restart$
+
   ).pipe(
     scan((s: State, action: string | number) => {
       const update = removeFilledRows(s);
@@ -582,11 +538,22 @@ export function main() {
         case "down":
           return move(s, 0, newScore, newLevel, highScore);
         case "rotateLeft":
-          return rotate(s, 1);
+          return rotate(s, 1, newScore, newLevel, highScore);
         case "rotateRight":
-          return rotate(s, -1);
+          return rotate(s, -1, newScore, newLevel, highScore);
+        case "restart":
+          if (s.gameEnd == true) {
+            hide(restartGame)
+            return restart(s);
+          }
         default:
+          if (s.gameEnd == false) {
           return tick(s, newScore, newLevel, highScore);
+          }
+
+          else {
+            return s;
+          }
       }
     }, initialState)
   )
@@ -595,12 +562,21 @@ export function main() {
   
     if (s.gameEnd) {
       // source$.unsubscribe();
-      show(gameover);
-    } 
-    
+      show(restartGame);
+    }
     else {
       hide(gameover);
     }
+
+    // if (s.gameEnd == true) {
+    //   show(gameover);
+    //   show(restartGame);
+    //   // return restart(s);
+    // }
+
+    // else {
+    //   hide(gameover)
+    // }
   });
 }
 
