@@ -47,20 +47,19 @@ type Key = "KeyS" | "KeyA" | "KeyD" | "KeyZ" | "KeyX" | "KeyR";
 /** Tetromino blocks */
 
 const tetrominos = [
-  // I Tetromino
-  { index: 0, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], color: '#E0D7FF' },
+  { index: 0, blocks: [{ x: 4, y: 0 }, { x: 3, y: 0 }, { x: 5, y: 0 }, { x: 6, y: 0 }], color: '#E0D7FF' },
   // J Tetromino
-  { index: 1, blocks: [{ x: 0, y: 1 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#FFCACB' },
+  { index: 1, blocks: [{ x: 3, y: 1 }, { x: 3, y: 0 }, { x: 4, y: 1 }, { x: 5, y: 1 }], color: '#FFCACB' },
   // L Tetromino
-  { index: 2, blocks: [{ x: 2, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#B4E5FF' },
+  { index: 2, blocks: [{ x: 5, y: 0 }, { x: 3, y: 1 }, { x: 4, y: 1 }, { x: 5, y: 1 }], color: '#B4E5FF' },
   // O Tetromino
-  { index: 3, blocks: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }], color: '#9CAAF2' },
+  { index: 3, blocks: [{ x: 3, y: 0 }, { x: 4, y: 0 }, { x: 3, y: 1 }, { x: 4, y: 1 }], color: '#9CAAF2' },
   // T Tetromino
-  { index: 4, blocks: [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#C5E8B4' },
+  { index: 4, blocks: [{ x: 4, y: 0 }, { x: 3, y: 1 }, { x: 4, y: 1 }, { x: 5, y: 1 }], color: '#C5E8B4' },
   // Z Tetromino
-  { index: 5, blocks: [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }], color: '#F4F0D9' },
+  { index: 5, blocks: [{ x: 4, y: 0 }, { x: 3, y: 0 }, { x: 4, y: 1 }, { x: 5, y: 1 }], color: '#F4F0D9' },
   // S Tetromino
-  { index: 6, blocks: [{ x: 2, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 1 }], color: '#88C9C8' },
+  { index: 6, blocks: [{ x: 5, y: 0 }, { x: 4, y: 1 }, { x: 4, y: 0 }, { x: 3, y: 1 }], color: '#88C9C8' },
 ];
 
 /**
@@ -114,7 +113,8 @@ const RNGGenerator = new RNG(987654321);
  *
  * @returns An array of SVG elements representing the individual parts of the new block
  */
-function createNewBlock(): SVGElement[] {
+const createNewBlock = (): SVGElement[] => {
+
   // Randomly select a tetromino
   const block = tetrominos[RNGGenerator.randomInt(0, tetrominos.length - 1)];
 
@@ -354,7 +354,7 @@ export function main() {
           existingBlocks.splice(existingBlocks.indexOf(element), 1);
         });
 
-        // Shift blocks above the cleared row
+        // Shift blocks above the cleared row downwards 
         existingBlocks.map(element => {
           const y = Number(element.getAttribute('y'));
           if (y < row) {
