@@ -42,7 +42,7 @@ const Block = {
 
 /** User input */
 
-type Key = "KeyS" | "KeyA" | "KeyD" | "KeyZ" | "KeyX" | "KeyR";
+type Key = "KeyS" | "KeyA" | "KeyD" | "KeyZ" | "KeyX" | "KeyR" | "Space" ;
 
 /** Tetromino blocks */
 
@@ -553,6 +553,55 @@ export function main() {
   };
 
   /**
+   * This function is used for the dropdown key, and drops the block down until it collides with an existing block or the bottom of the canvas
+   * 
+   * @param s The state
+   * @param score The score of the state
+   * @param level The level of the state
+   * @param highScore The high score of the state
+   * @returns The state with the updated block positions, when the block is dropped down
+   */
+  const dropdown = (s: State, score: number, level: number, highScore: number) => {
+    if (!s.gameEnd) {
+      const dropBlock = (distance: number): SVGElement[] => {
+        const newBlock = s.currentBlock.map((element) => {
+          const newY = Number(element.getAttribute("y")) + Block.HEIGHT;
+
+          if (newY + Block.HEIGHT <= Viewport.CANVAS_HEIGHT) {
+            element.setAttribute("y", `${newY}`);
+          }
+
+          return element;
+        });
+  
+        // Recursively drop the block while checking for collision and if the block is within the canvas
+        if (!checkCollision(newBlock, existingBlocks) && canMoveVertically(newBlock, Block.HEIGHT)) {
+          return dropBlock(distance + 1); 
+        }
+  
+        // Store the dropped block into existingBlocks
+        existingBlocks.push(...newBlock);
+  
+        // Stop dropping if collision detected or out of bounds
+        return newBlock; 
+      };
+  
+      const newBlock = dropBlock(1); // Start dropping from distance 1
+  
+      return {
+        ...s,
+        currentBlock: newBlock,
+        gameEnd: checkGameEnd(s),
+        score,
+        level,
+        highScore,
+      };
+    }
+  
+    return s;
+  };
+
+  /**
    * Function to restart the game
    * 
    * @param s The state
@@ -654,6 +703,8 @@ export function main() {
     scoreText.textContent = `${s.score}`;
     levelText.textContent = `${s.level}`;
     highScoreText.textContent = `${s.highScore}`;
+
+    preview.innerHTML = '';
     
     // Add the next block to the preview canvas
     s.nextBlock.map(element => {
@@ -677,6 +728,9 @@ export function main() {
   // Rotation keys
   const rotateLeft$ = fromKey("KeyZ", 'rotateLeft');
   const rotateRight$ = fromKey("KeyX", 'rotateRight');
+
+  // Dropdown key
+  const dropDown$ = fromKey("Space", 'dropDown');
 
   // Restart key
   const restart$ = fromKey("KeyR", 'restart');
@@ -714,6 +768,7 @@ export function main() {
     down$,
     rotateLeft$,
     rotateRight$,
+    dropDown$,
     restart$
   ).pipe(
     scan((s: State, action: string | number) => {
@@ -734,6 +789,21 @@ export function main() {
           return rotate(s, 1, newScore, newLevel, highScore);
         case "rotateRight":
           return rotate(s, -1, newScore, newLevel, highScore);
+        case "dropDown":
+          if (!s.gameEnd) {
+            const droppedState = dropdown(s, newScore, newLevel, highScore);
+            
+            const currentBlock = s.nextBlock
+            const nextBlock = createNewBlock();
+
+            const newBlockState = {
+              ...droppedState,
+              currentBlock: currentBlock, 
+              nextBlock: nextBlock, 
+            };
+            return newBlockState;
+          }
+          return s;
         case "restart":
           if (s.gameEnd == true) {
             hide(restartGame)
