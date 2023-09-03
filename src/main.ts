@@ -64,6 +64,8 @@ const tetrominos = [
 
 /**
  * Random number generator class that generates pseudorandom integers within a specified range
+ * 
+ * This follows most of the implementation from tutorial 04, with some modifications
  */
 class RNG {
   private static m = 0x80000000; // 2**31
@@ -744,7 +746,7 @@ export function main() {
   );
 
   /**
-   * Main game 
+   * Main game loop
    * 
    * Manages the core logic for a Tetris game using RxJS observables.
    * This module handles the game state, user input, and rendering.
