@@ -1,17 +1,3 @@
-/**
- * Inside this file you will use the classes and functions from rx.js
- * to add visuals to the svg element in index.html, animate them, and make them interactive.
- *
- * Study and complete the tasks in observable exercises first to get ideas.
- *
- * Course Notes showing Asteroids in FRP: https://tgdwyer.github.io/asteroids/
- *
- * You will be marked on your functional programming style
- * as well as the functionality that you implement.
- *
- * Document your code!
- */
-
 import "./style.css";
 
 import { BehaviorSubject, fromEvent, interval, merge } from "rxjs";
@@ -211,6 +197,18 @@ export function main() {
   const restartGame = document.querySelector("#restart") as SVGGraphicsElement &
     HTMLElement;
   const container = document.querySelector("#main") as HTMLElement;
+
+  // Background music
+  const bgMusic = new Audio('assets/music/tetris-theme.wav');
+  bgMusic.loop = true;
+  bgMusic.volume = 0.3; // 30% volume
+
+  // Start background music (with user interaction)
+  document.addEventListener('keypress', () => {
+    if (bgMusic.paused) {
+      bgMusic.play().catch(e => console.log('Background music failed:', e));
+    }
+  }, { once: true });
 
   // Set the canvas sizes
   svg.setAttribute("height", `${Viewport.CANVAS_HEIGHT}`);
@@ -691,6 +689,47 @@ export function main() {
   };
 
   /**
+   * Creates a centered version of the next block for the preview canvas
+   * 
+   * @param block The block to display in preview
+   * @returns An array of SVG elements positioned for the preview canvas
+   */
+  const createPreviewBlock = (block: SVGElement[]): SVGElement[] => {
+    const preview = document.querySelector("#svgPreview") as SVGGraphicsElement & HTMLElement;
+    
+    // Calculate the bounds of the current block
+    const xPositions = block.map(el => Number(el.getAttribute('x')));
+    const yPositions = block.map(el => Number(el.getAttribute('y')));
+    
+    const minX = Math.min(...xPositions);
+    const maxX = Math.max(...xPositions);
+    const minY = Math.min(...yPositions);
+    const maxY = Math.max(...yPositions);
+    
+    const blockWidth = maxX - minX + Block.WIDTH;
+    const blockHeight = maxY - minY + Block.HEIGHT;
+    
+    // Center the block in the preview canvas
+    const offsetX = (Viewport.PREVIEW_WIDTH - blockWidth) / 2;
+    const offsetY = (Viewport.PREVIEW_HEIGHT - blockHeight) / 2;
+    
+    // Create new SVG elements with centered positions
+    return block.map(element => {
+      const x = Number(element.getAttribute('x')) - minX + offsetX;
+      const y = Number(element.getAttribute('y')) - minY + offsetY;
+      const color = element.getAttribute('style');
+      
+      return createSvgElement(preview.namespaceURI, "rect", {
+        height: `${Block.HEIGHT}`,
+        width: `${Block.WIDTH}`,
+        x: `${x}`,
+        y: `${y}`,
+        style: color || '',
+      });
+    });
+  };
+
+  /**
    * Renders the current state to the canvas.
    *
    * In MVC terms, this updates the View using the Model.
@@ -707,12 +746,12 @@ export function main() {
     highScoreText.textContent = `${s.highScore}`;
 
     preview.innerHTML = '';
-    
-    // Add the next block to the preview canvas
-    s.nextBlock.map(element => {
+
+    // Add the next block to the preview canvas (CENTERED)
+    const previewBlocks = createPreviewBlock(s.nextBlock);
+    previewBlocks.map(element => {
       preview.appendChild(element);
-    } 
-    );
+    });
   };
 
   // Initial render
