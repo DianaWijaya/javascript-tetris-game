@@ -1,4 +1,4 @@
-# javasciupt-tetris-game
+# javascript-tetris-game
 
 A classic Tetris implementation featuring all seven tetromino types, controls, rotation mechanics with wall kicks, progressive difficulty scaling, and score tracking.
 
